@@ -1,7 +1,7 @@
 import { usePage } from '@inertiajs/vue3';
 import { computed, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { isSupportedLocale, SUPPORTED_LOCALES } from '@/i18n';
+import { isSupportedLocale } from '@/i18n';
 import type { SharedProps } from '@/types';
 
 /**
@@ -29,6 +29,4 @@ export function useBoundLocale(): void {
             i18n.locale.value = next;
         }
     });
-
-    void SUPPORTED_LOCALES;
 }
