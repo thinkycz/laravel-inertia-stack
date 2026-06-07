@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FieldError.vue`, `FlashAlerts.vue`, `Select.vue`, `FormField.vue` shared UI
   primitives under `resources/js/components/ui/`.
 - `useSharedProps()` composable returning `{app, auth, user, flash, flashSuccess,
-  flashError, errors}` with strict TypeScript types.
+flashError, errors}` with strict TypeScript types.
 - `app/Http/Resources/UserResource::toId()` for consistent `id` projection.
 - `app/Http/Controllers/Web/Concerns/ThrottlesWebRequests` trait applied to
   auth web controllers.
