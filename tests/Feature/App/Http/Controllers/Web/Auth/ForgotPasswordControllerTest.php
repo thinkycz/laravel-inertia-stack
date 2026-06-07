@@ -43,9 +43,10 @@ class ForgotPasswordControllerTest extends TestCase
 
         $response = $this->post('/forgot-password', [
             'email' => $user->getEmail(),
-        ]);
+        ], $this->inertiaHeaders());
 
-        $response->assertRedirect('/forgot-password');
+        $response->assertOk();
+        $response->assertJsonPath('component', 'auth/ForgotPassword');
         $response->assertSessionHas('success');
 
         $user->refresh();

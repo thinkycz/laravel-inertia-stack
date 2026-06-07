@@ -12,13 +12,16 @@ test.describe('Profile management', () => {
         await page.waitForURL(/\/dashboard/);
     });
 
-    test('user can change locale', async ({ page }) => {
+    test('user can change locale and see success flash', async ({ page }) => {
         await page.goto('/settings/profile');
 
         await page.getByLabel('Locale').selectOption('cs');
         await page.getByRole('button', { name: 'Save profile' }).click();
 
         await expect(page).toHaveURL(/\/settings\/profile$/);
+        await expect(
+            page.getByRole('alert').filter({ hasText: 'Profile updated.' }),
+        ).toBeVisible();
     });
 
     test('user can navigate to password settings', async ({ page }) => {

@@ -12,7 +12,6 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Thinkycz\LaravelCore\Models\BaseUser;
 use Thinkycz\LaravelCore\Support\Resolver;
 use Thinkycz\LaravelCore\Support\Typer;
@@ -34,7 +33,7 @@ class ForgotPasswordController
     /**
      * Send or apply the reset flow configured by the core package.
      */
-    public function store(Request $request): SymfonyResponse
+    public function store(Request $request): Response
     {
         $this->hit($this->limit());
 
@@ -64,8 +63,8 @@ class ForgotPasswordController
 
         $user->sendPasswordNewPasswordSettedNotification($password);
 
-        return Resolver::resolveRedirector()
-            ->to('/forgot-password')
-            ->with('success', \__('A new password has been sent to your email address.'));
+        $request->session()->flash('success', \__('A new password has been sent to your email address.'));
+
+        return Inertia::render('auth/ForgotPassword');
     }
 }

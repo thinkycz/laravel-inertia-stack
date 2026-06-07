@@ -3,7 +3,6 @@ import { Form, Link } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import Button from '@/components/ui/Button.vue';
 import FieldError from '@/components/ui/FieldError.vue';
-import FlashAlerts from '@/components/ui/FlashAlerts.vue';
 import Input from '@/components/ui/Input.vue';
 import Label from '@/components/ui/Label.vue';
 
@@ -18,8 +17,6 @@ type PasswordFields = {
         <section
             class="max-w-xl rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
         >
-            <FlashAlerts />
-
             <Form
                 v-slot="{ errors, processing }"
                 action="/settings/password"

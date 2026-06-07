@@ -9,8 +9,6 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
-use Thinkycz\LaravelCore\Support\Resolver;
 
 class VerifyEmailController
 {
@@ -27,7 +25,7 @@ class VerifyEmailController
     /**
      * Resend an email verification message.
      */
-    public function store(Request $request): SymfonyResponse
+    public function store(Request $request): Response
     {
         $this->hit($this->limit());
 
@@ -37,8 +35,8 @@ class VerifyEmailController
             $user->sendEmailVerificationNotification();
         }
 
-        return Resolver::resolveRedirector()
-            ->to('/verify-email')
-            ->with('success', \__('Verification email sent.'));
+        $request->session()->flash('success', \__('Verification email sent.'));
+
+        return Inertia::render('auth/VerifyEmail');
     }
 }

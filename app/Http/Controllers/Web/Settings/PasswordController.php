@@ -10,7 +10,6 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Thinkycz\LaravelCore\Support\Resolver;
 use Thinkycz\LaravelCore\Validation\AuthValidity;
 
@@ -29,7 +28,7 @@ class PasswordController
     /**
      * Update the user's password.
      */
-    public function update(Request $request): SymfonyResponse
+    public function update(Request $request): Response
     {
         $user = User::mustAuth();
         $authValidity = AuthValidity::inject();
@@ -53,8 +52,8 @@ class PasswordController
 
         $user->databaseTokens()->getQuery()->delete();
 
-        return Resolver::resolveRedirector()
-            ->to('/settings/password')
-            ->with('success', \__('Password updated.'));
+        $request->session()->flash('success', \__('Password updated.'));
+
+        return Inertia::render('settings/Password');
     }
 }

@@ -9,8 +9,6 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
-use Thinkycz\LaravelCore\Support\Resolver;
 use Thinkycz\LaravelCore\Validation\AuthValidity;
 
 class ProfileController
@@ -28,7 +26,7 @@ class ProfileController
     /**
      * Update profile settings.
      */
-    public function update(Request $request): SymfonyResponse
+    public function update(Request $request): Response
     {
         $user = User::mustAuth();
         $authValidity = AuthValidity::inject();
@@ -43,8 +41,8 @@ class ProfileController
             'locale' => $validated->assertString('locale'),
         ]);
 
-        return Resolver::resolveRedirector()
-            ->to('/settings/profile')
-            ->with('success', \__('Profile updated.'));
+        $request->session()->flash('success', \__('Profile updated.'));
+
+        return Inertia::render('settings/Profile');
     }
 }

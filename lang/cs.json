@@ -13,5 +13,6 @@
     "Regards,": "S pozdravem",
     "If you're having trouble clicking the \":actionText\" button, copy and paste the URL below\ninto your web browser:": "Pokud máte potíže s klepnutím na tlačítko \":actionText\", zkopírujte a vložte\nníže uvedenou adresu URL do vašeho webového prohlížeče:",
     "Go Home": "Domů",
-    "Verification code \":code\".": "Ověřovací kód \":code\"."
+    "Verification code \":code\".": "Ověřovací kód \":code\".",
+    "spa.email_verification_url": "/api/v1/email_verification/verify"
 }

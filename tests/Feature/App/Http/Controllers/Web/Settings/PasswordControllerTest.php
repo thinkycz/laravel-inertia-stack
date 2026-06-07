@@ -32,9 +32,10 @@ class PasswordControllerTest extends TestCase
         $response = $this->be($user, 'users')->post('/settings/password', [
             'password' => UserFactory::$password,
             'new_password' => 'new-password',
-        ]);
+        ], $this->inertiaHeaders());
 
-        $response->assertRedirect('/settings/password');
+        $response->assertOk();
+        $response->assertJsonPath('component', 'settings/Password');
 
         $user->refresh();
 
@@ -52,7 +53,7 @@ class PasswordControllerTest extends TestCase
         $this->be($user, 'users')->post('/settings/password', [
             'password' => UserFactory::$password,
             'new_password' => 'new-password',
-        ]);
+        ], $this->inertiaHeaders());
 
         $this->assertDatabaseCount('database_tokens', 0);
     }

@@ -34,9 +34,10 @@ class VerifyEmailControllerTest extends TestCase
 
         static::assertNull($user->getEmailVerifiedAt());
 
-        $response = $this->be($user, 'users')->post('/verify-email');
+        $response = $this->be($user, 'users')->post('/verify-email', [], $this->inertiaHeaders());
 
-        $response->assertRedirect('/verify-email');
+        $response->assertOk();
+        $response->assertJsonPath('component', 'auth/VerifyEmail');
         $response->assertSessionHas('success');
 
         Notification::assertSentTo($user, EmailVerificationNotification::class);
@@ -49,9 +50,10 @@ class VerifyEmailControllerTest extends TestCase
         $user = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
         $user->markEmailAsVerified();
 
-        $response = $this->be($user, 'users')->post('/verify-email');
+        $response = $this->be($user, 'users')->post('/verify-email', [], $this->inertiaHeaders());
 
-        $response->assertRedirect('/verify-email');
+        $response->assertOk();
+        $response->assertJsonPath('component', 'auth/VerifyEmail');
 
         Notification::assertNothingSent();
     }

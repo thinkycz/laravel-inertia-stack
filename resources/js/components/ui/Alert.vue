@@ -19,6 +19,7 @@ const variants = {
 
 <template>
     <div
+        role="alert"
         :class="
             cn('rounded-md border px-4 py-3 text-sm', variants[props.variant])
         "

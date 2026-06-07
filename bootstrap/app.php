@@ -68,14 +68,18 @@ return Application::configure(basePath: \dirname(__DIR__))
                 return null;
             }
 
-            $errors = (object) \collect($exception->errors())
-                ->map(static fn(array $messages): array => $messages)
-                ->toArray();
-
-            $component = $request->header('X-Inertia-Partial-Component') ?: 'auth/Login';
+            $component = $request->header('X-Inertia-Partial-Component') ?: match ($request->path()) {
+                'verify-email' => 'auth/VerifyEmail',
+                'forgot-password' => 'auth/ForgotPassword',
+                'reset-password' => 'auth/ResetPassword',
+                'register' => 'auth/Register',
+                'settings/profile' => 'settings/Profile',
+                'settings/password' => 'settings/Password',
+                default => 'auth/Login',
+            };
 
             $page = Inertia\Inertia::render($component, [
-                'errors' => $errors,
+                'errors' => (object) $exception->errors(),
             ])->toResponse($request);
 
             return $page->setStatusCode(422);

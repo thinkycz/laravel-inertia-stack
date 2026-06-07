@@ -31,9 +31,10 @@ class ProfileControllerTest extends TestCase
         $response = $this->be($user, 'users')->post('/settings/profile', [
             'email' => 'updated@example.com',
             'locale' => 'cs',
-        ]);
+        ], $this->inertiaHeaders());
 
-        $response->assertRedirect('/settings/profile');
+        $response->assertOk();
+        $response->assertJsonPath('component', 'settings/Profile');
         $this->assertDatabaseHas('users', [
             'id' => $user->getKey(),
             'email' => 'updated@example.com',
