@@ -8,7 +8,7 @@ import {
     MessageSquare,
     Trash2,
 } from '@lucide/vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Brand from '@/components/ui/Brand.vue';
 import FlashAlerts from '@/components/ui/FlashAlerts.vue';
@@ -23,6 +23,7 @@ defineProps<{
 const { auth, conversations } = useSharedProps();
 const { t } = useI18n();
 const { pendingConversationId } = useActiveConversation();
+const mobileHistoryOpen = ref(false);
 
 useBoundLocale();
 
@@ -63,6 +64,10 @@ function deleteConversation(id: string): void {
         router.delete(`/conversations/${id}`);
     }
 }
+
+function closeMobileHistory(): void {
+    mobileHistoryOpen.value = false;
+}
 </script>
 
 <template>
@@ -95,6 +100,15 @@ function deleteConversation(id: string): void {
                 >
                     <Activity :size="16" />
                     {{ t('nav.dashboard') }}
+                </Link>
+
+                <Link
+                    href="/dashboard"
+                    class="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold text-on-surface-variant transition-all hover:bg-surface-container-low"
+                    :title="t('nav.new_chat')"
+                >
+                    <Plus :size="16" />
+                    {{ t('nav.new_chat') }}
                 </Link>
 
                 <!-- Conversations History -->
@@ -205,12 +219,37 @@ function deleteConversation(id: string): void {
             <div class="flex items-center gap-1.5">
                 <Link
                     href="/dashboard"
+                    class="rounded-lg p-2 text-on-surface-variant transition-all"
+                    :title="t('nav.new_chat')"
+                    :aria-label="t('nav.new_chat')"
+                    @click="closeMobileHistory"
+                >
+                    <Plus :size="16" />
+                </Link>
+                <button
+                    type="button"
+                    class="rounded-lg p-2 text-on-surface-variant transition-all"
+                    :class="
+                        mobileHistoryOpen
+                            ? 'bg-surface-container-low text-primary'
+                            : ''
+                    "
+                    :title="t('nav.history')"
+                    :aria-label="t('nav.history')"
+                    :aria-expanded="mobileHistoryOpen"
+                    @click="mobileHistoryOpen = !mobileHistoryOpen"
+                >
+                    <MessageSquare :size="16" />
+                </button>
+                <Link
+                    href="/dashboard"
                     :class="[
                         'rounded-lg p-2 transition-all',
                         currentTab === 'dashboard'
                             ? 'font-bold text-primary bg-surface-container-low'
                             : 'text-on-surface-variant',
                     ]"
+                    @click="closeMobileHistory"
                 >
                     <Activity :size="16" />
                 </Link>
@@ -222,6 +261,7 @@ function deleteConversation(id: string): void {
                             ? 'font-bold text-primary bg-surface-container-low'
                             : 'text-on-surface-variant',
                     ]"
+                    @click="closeMobileHistory"
                 >
                     <SettingsIcon :size="16" />
                 </Link>
@@ -233,6 +273,49 @@ function deleteConversation(id: string): void {
                 </button>
             </div>
         </header>
+
+        <div
+            v-if="mobileHistoryOpen"
+            class="glass-panel z-20 max-h-64 overflow-y-auto border-b border-outline-glass px-4 py-3 md:hidden"
+        >
+            <p
+                class="mb-2 text-[10px] font-bold tracking-wider text-on-surface-variant uppercase opacity-75"
+            >
+                {{ t('nav.history') || 'History' }}
+            </p>
+            <div v-if="conversations.length > 0" class="space-y-1">
+                <div
+                    v-for="chat in conversations"
+                    :key="chat.id"
+                    class="relative flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold"
+                    :class="[
+                        activeConversationId === chat.id
+                            ? 'bg-surface-container-low font-bold text-primary'
+                            : 'text-on-surface-variant',
+                    ]"
+                >
+                    <Link
+                        :href="`/conversations/${chat.id}`"
+                        class="flex flex-1 items-center gap-3 truncate pr-8 text-left"
+                        @click="closeMobileHistory"
+                    >
+                        <MessageSquare :size="14" class="shrink-0" />
+                        <span class="truncate">{{ chat.title }}</span>
+                    </Link>
+                    <button
+                        type="button"
+                        @click.stop="deleteConversation(chat.id)"
+                        class="absolute right-2 cursor-pointer rounded-lg p-1 text-on-surface-variant hover:bg-rose-50/50 hover:text-error-red"
+                        :title="t('nav.delete_chat') || 'Delete Conversation'"
+                    >
+                        <Trash2 :size="12" />
+                    </button>
+                </div>
+            </div>
+            <p v-else class="px-3 py-2 text-xs text-on-surface-variant">
+                {{ t('nav.no_chats') }}
+            </p>
+        </div>
 
         <!-- Main Workspace -->
         <main class="flex h-screen flex-1 flex-col overflow-hidden">

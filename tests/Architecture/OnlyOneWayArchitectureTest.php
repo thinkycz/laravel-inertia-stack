@@ -47,6 +47,15 @@ $forbiddenFunctions = [
     }
 });
 
+\arch('config files never call env directly', function (): void {
+    foreach (\glob(\base_path('config/*.php')) ?: [] as $file) {
+        $contents = (string) \file_get_contents($file);
+
+        \expect($contents)
+            ->not->toMatch('/(?<![A-Za-z0-9_])\\\\?env\\(/');
+    }
+});
+
 \arch('app code never imports the raw config repository', function (): void {
     $forbidden = [
         'use Illuminate\\Contracts\\Config\\Repository;',

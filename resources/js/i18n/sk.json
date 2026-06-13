@@ -9,7 +9,8 @@
         "logout": "Odhlásiť sa",
         "new_chat": "Nový chat",
         "history": "Konverzácie",
-        "delete_chat": "Vymazať konverzáciu"
+        "delete_chat": "Vymazať konverzáciu",
+        "no_chats": "Zatiaľ žiadne konverzácie"
     },
     "brand": {
         "subtitle": "Štartovacia sada"
@@ -92,6 +93,9 @@
         "locale": "Jazyk",
         "user": "Vy",
         "assistant": "Asistent"
+    },
+    "errors": {
+        "failed_response": "Nepodarilo sa vygenerovať odpoveď. Skúste to prosím znova."
     },
     "locale": {
         "switcher_label": "Jazyk",

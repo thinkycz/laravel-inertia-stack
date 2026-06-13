@@ -78,6 +78,17 @@ const suggestions = [
     { icon: Sparkles, textKey: 'dashboard.suggestions.schema' as const },
 ] as const;
 
+function removeOptimisticConversation(id: string): void {
+    const conversations = page.props.conversations;
+    const index = conversations.findIndex(
+        (conversation) => conversation.id === id,
+    );
+
+    if (index >= 0) {
+        conversations.splice(index, 1);
+    }
+}
+
 function resizeTextarea() {
     if (chatTextarea.value) {
         chatTextarea.value.style.height = 'auto';
@@ -161,6 +172,7 @@ async function submitMessage() {
     const url = props.conversation
         ? `/conversations/${props.conversation.id}/messages`
         : '/conversations';
+    let newConversationId: string | null = null;
 
     try {
         const xsrfToken = document.cookie
@@ -185,6 +197,7 @@ async function submitMessage() {
 
         const conversationIdHeader = response.headers.get('X-Conversation-ID');
         if (conversationIdHeader && !props.conversation) {
+            newConversationId = conversationIdHeader;
             if (page.props.conversations) {
                 const title =
                     promptText.length > 35
@@ -219,42 +232,68 @@ async function submitMessage() {
                 const dataStr = cleaned.slice(6);
                 if (dataStr === '[DONE]') continue;
 
+                let data: unknown;
                 try {
-                    const data = JSON.parse(dataStr);
-                    if (data.type === 'text_delta') {
-                        localMessages.value[assistantMsgIndex].content +=
-                            data.delta;
-                        scrollToBottom();
-                    } else if (data.type === 'done') {
-                        const newId = data.conversation_id;
-                        // Clear the pending state and navigate properly now that
-                        // streaming is complete.
-                        pendingConversationId.value = null;
-                        if (
-                            !props.conversation ||
-                            props.conversation.id !== newId
-                        ) {
-                            router.visit(`/conversations/${newId}`, {
-                                preserveScroll: true,
-                                replace: true,
-                            });
-                        } else {
-                            router.reload();
-                        }
-                    }
-                } catch (e) {
+                    data = JSON.parse(dataStr);
+                } catch {
                     // Ignore parsing errors for incomplete data chunks
+                    continue;
+                }
+
+                if (
+                    typeof data !== 'object' ||
+                    data === null ||
+                    !('type' in data)
+                ) {
+                    continue;
+                }
+
+                if (data.type === 'text_delta' && 'delta' in data) {
+                    localMessages.value[assistantMsgIndex].content += String(
+                        data.delta,
+                    );
+                    scrollToBottom();
+                } else if (data.type === 'error') {
+                    throw new Error(
+                        'message' in data && typeof data.message === 'string'
+                            ? data.message
+                            : t('errors.failed_response'),
+                    );
+                } else if (
+                    data.type === 'done' &&
+                    'conversation_id' in data &&
+                    typeof data.conversation_id === 'string'
+                ) {
+                    const newId = data.conversation_id;
+                    // Clear the pending state and navigate properly now that
+                    // streaming is complete.
+                    pendingConversationId.value = null;
+                    if (
+                        !props.conversation ||
+                        props.conversation.id !== newId
+                    ) {
+                        router.visit(`/conversations/${newId}`, {
+                            preserveScroll: true,
+                            replace: true,
+                        });
+                    } else {
+                        router.reload();
+                    }
                 }
             }
         }
-    } catch (e: any) {
-        if (e.name === 'AbortError') {
+    } catch (e: unknown) {
+        if (e instanceof DOMException && e.name === 'AbortError') {
             return;
         }
         console.error('Error during chat stream:', e);
+        if (newConversationId) {
+            removeOptimisticConversation(newConversationId);
+        }
         localMessages.value[assistantMsgIndex].content =
-            t('errors.failed_response') ||
-            'Failed to generate response. Please try again.';
+            e instanceof Error && e.message
+                ? e.message
+                : t('errors.failed_response');
     } finally {
         localProcessing.value = false;
         streamingMsgIndex.value = -1;

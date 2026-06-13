@@ -9,7 +9,8 @@
         "logout": "Log out",
         "new_chat": "New Chat",
         "history": "Conversations",
-        "delete_chat": "Delete Conversation"
+        "delete_chat": "Delete Conversation",
+        "no_chats": "No conversations yet"
     },
     "brand": {
         "subtitle": "Starter Kit"
@@ -92,6 +93,9 @@
         "locale": "Locale",
         "user": "You",
         "assistant": "Assistant"
+    },
+    "errors": {
+        "failed_response": "Failed to generate response. Please try again."
     },
     "locale": {
         "switcher_label": "Language",

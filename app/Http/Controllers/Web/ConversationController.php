@@ -5,17 +5,18 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Web;
 
 use App\Ai\Agents\ChatAgent;
+use App\Ai\ConversationRepository;
 use App\Http\Controllers\Web\Concerns\ThrottlesWebRequests;
 use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Laravel\Ai\Models\Conversation;
+use Laravel\Ai\Streaming\Events\StreamEvent;
 use Symfony\Component\HttpFoundation\StreamedResponse as SymfonyStreamedResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -29,36 +30,27 @@ class ConversationController
     use ThrottlesWebRequests;
 
     /**
+     * Constructor.
+     */
+    public function __construct(private readonly ConversationRepository $conversations) {}
+
+    /**
      * Show a specific conversation.
      */
     public function show(string $id): RedirectResponse|Response
     {
         $user = User::mustAuth();
 
-        $conversation = $this->findOwned($id, $user);
+        $conversation = $this->conversations->findOwned($id, $user);
 
         if ($conversation === null) {
             return Resolver::resolveRedirector()->to('/dashboard');
         }
 
-        $agent = ChatAgent::make()->continue($conversation->id, $user);
-
-        $messagesIterable = $agent->messages();
-        $messagesArray = \is_array($messagesIterable) ? $messagesIterable : \iterator_to_array($messagesIterable);
-
-        $messages = \collect($messagesArray)->map(fn($message) => [
-            'role' => $message->role->value,
-            'content' => Typer::assertNullableString($message->content),
-        ])->toArray();
-
-        $convTitle = Typer::assertString($conversation->getAttribute('title'));
+        $agent = ChatAgent::make()->continue($this->conversations->conversationId($conversation), $user);
 
         return Inertia::render('Dashboard', [
-            'conversation' => [
-                'id' => $conversation->id,
-                'title' => $convTitle,
-                'messages' => $messages,
-            ],
+            'conversation' => $this->conversations->dashboardPayload($conversation, $agent->messages()),
         ]);
     }
 
@@ -77,40 +69,31 @@ class ConversationController
 
         $message = Typer::assertString($request->input('message'));
 
-        // Create the conversation in the database immediately with a snippet title.
-        $conversation = Conversation::create([
-            'id' => Str::uuid()->toString(),
-            'user_id' => $user->id,
-            'title' => Str::limit($message, 35),
-        ]);
+        $conversation = $this->conversations->createForUser($user, $message);
+        $conversationId = $this->conversations->conversationId($conversation);
 
-        $agent = ChatAgent::make()->continue($conversation->id, $user);
+        $agent = ChatAgent::make()->continue($conversationId, $user);
         $stream = $agent->stream($message);
 
-        return new SymfonyStreamedResponse(function () use ($stream, $conversation, $message): void {
-            if (!App::runningUnitTests()) {
-                \ob_implicit_flush(true);
-                while (\ob_get_level() > 0) {
-                    \ob_end_flush();
+        return new SymfonyStreamedResponse(function () use ($stream, $conversation, $conversationId, $message): void {
+            $this->prepareStream();
+
+            try {
+                foreach ($stream as $event) {
+                    if ($event instanceof StreamEvent) {
+                        $this->emitStreamData($event->toArray());
+                    }
                 }
+            } catch (Throwable) {
+                $this->conversations->deleteIfEmpty($conversation);
+                $this->emitStreamError();
+                $this->flushStream();
+
+                return;
             }
 
-            foreach ($stream as $event) {
-                if ($event instanceof \Laravel\Ai\Streaming\Events\StreamEvent) {
-                    echo 'data: ' . $event->__toString() . "\n\n";
-                }
-            }
-
-            // Send the done event immediately so the client can navigate away.
-            // Title generation happens afterwards and does not block the client.
-            echo 'data: ' . \json_encode([
-                'type' => 'done',
-                'conversation_id' => $conversation->id,
-            ]) . "\n\n";
-
-            if (!App::runningUnitTests()) {
-                \flush();
-            }
+            $this->emitStreamDone($conversationId);
+            $this->flushStream();
 
             // Generate a friendly 3-4 word title after the client has been released.
             try {
@@ -127,7 +110,7 @@ class ConversationController
             'Content-Type' => 'text/event-stream',
             'Cache-Control' => 'no-cache, must-revalidate',
             'X-Accel-Buffering' => 'no',
-            'X-Conversation-ID' => $conversation->id,
+            'X-Conversation-ID' => $conversationId,
         ]);
     }
 
@@ -144,9 +127,7 @@ class ConversationController
             throw new NotFoundHttpException();
         }
 
-        $convUserId = Typer::assertNullableInt($conversation->getAttribute('user_id'));
-
-        if ($user->id !== $convUserId) {
+        if ($this->conversations->findOwned($id, $user) === null) {
             throw new AccessDeniedHttpException();
         }
 
@@ -158,27 +139,28 @@ class ConversationController
 
         $message = Typer::assertString($request->input('message'));
 
-        $agent = ChatAgent::make()->continue($conversation->id, $user);
+        $conversationId = $this->conversations->conversationId($conversation);
+        $agent = ChatAgent::make()->continue($conversationId, $user);
         $stream = $agent->stream($message);
 
-        return new SymfonyStreamedResponse(function () use ($stream, $conversation): void {
-            if (!App::runningUnitTests()) {
-                \ob_implicit_flush(true);
-                while (\ob_get_level() > 0) {
-                    \ob_end_flush();
+        return new SymfonyStreamedResponse(function () use ($stream, $conversationId): void {
+            $this->prepareStream();
+
+            try {
+                foreach ($stream as $event) {
+                    if ($event instanceof StreamEvent) {
+                        $this->emitStreamData($event->toArray());
+                    }
                 }
+            } catch (Throwable) {
+                $this->emitStreamError();
+                $this->flushStream();
+
+                return;
             }
 
-            foreach ($stream as $event) {
-                if ($event instanceof \Laravel\Ai\Streaming\Events\StreamEvent) {
-                    echo 'data: ' . $event->__toString() . "\n\n";
-                }
-            }
-
-            echo 'data: ' . \json_encode([
-                'type' => 'done',
-                'conversation_id' => $conversation->id,
-            ]) . "\n\n";
+            $this->emitStreamDone($conversationId);
+            $this->flushStream();
         }, 200, [
             'Content-Type' => 'text/event-stream',
             'Cache-Control' => 'no-cache, must-revalidate',
@@ -193,19 +175,13 @@ class ConversationController
     {
         $user = User::mustAuth();
 
-        $conversation = $this->findOwned($id, $user);
+        $conversation = $this->conversations->findOwned($id, $user);
 
         if ($conversation === null) {
             return Resolver::resolveRedirector()->to('/dashboard');
         }
 
-        DB::transaction(function () use ($conversation): void {
-            DB::table('agent_conversation_messages')
-                ->where('conversation_id', $conversation->id)
-                ->delete();
-
-            $conversation->delete();
-        });
+        $this->conversations->delete($conversation);
 
         $referer = $request->header('referer');
         $isDeletingCurrent = false;
@@ -234,23 +210,57 @@ class ConversationController
     }
 
     /**
-     * Find a conversation that belongs to the given user.
-     * Returns null if not found or if the conversation belongs to a different user.
+     * Prepare the streamed response output buffers.
      */
-    private function findOwned(string $id, User $user): Conversation|null
+    private function prepareStream(): void
     {
-        $conversation = Conversation::find($id);
-
-        if ($conversation === null) {
-            return null;
+        if (!App::runningUnitTests()) {
+            \ob_implicit_flush(true);
+            while (\ob_get_level() > 0) {
+                \ob_end_flush();
+            }
         }
+    }
 
-        $convUserId = Typer::assertNullableInt($conversation->getAttribute('user_id'));
+    /**
+     * Emit a successful stream completion event.
+     */
+    private function emitStreamDone(string $conversationId): void
+    {
+        $this->emitStreamData([
+            'type' => 'done',
+            'conversation_id' => $conversationId,
+        ]);
+    }
 
-        if ($user->id !== $convUserId) {
-            return null;
+    /**
+     * Emit a stream error event.
+     */
+    private function emitStreamError(): void
+    {
+        $this->emitStreamData([
+            'type' => 'error',
+            'message' => 'Failed to generate response. Please try again.',
+        ]);
+    }
+
+    /**
+     * Emit an SSE data event.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function emitStreamData(array $payload): void
+    {
+        echo 'data: ' . Typer::assertString(\json_encode($payload)) . "\n\n";
+    }
+
+    /**
+     * Flush streamed output when running outside unit tests.
+     */
+    private function flushStream(): void
+    {
+        if (!App::runningUnitTests()) {
+            \flush();
         }
-
-        return $conversation;
     }
 }
