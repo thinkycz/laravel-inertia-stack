@@ -11,8 +11,10 @@ import {
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Brand from '@/components/ui/Brand.vue';
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 import FlashAlerts from '@/components/ui/FlashAlerts.vue';
 import { useBoundLocale } from '@/composables/useBoundLocale';
+import { useConfirmDialog } from '@/composables/useConfirmDialog';
 import { useSharedProps } from '@/composables/useSharedProps';
 import { useActiveConversation } from '@/composables/useActiveConversation';
 
@@ -58,8 +60,12 @@ function logout(): void {
     router.post('/logout');
 }
 
-function deleteConversation(id: string): void {
-    if (confirm(t('conversations.delete_confirm'))) {
+async function deleteConversation(id: string): Promise<void> {
+    const confirmDialog = useConfirmDialog();
+
+    if (
+        await confirmDialog.confirm(t('conversations.delete_confirm'))
+    ) {
         router.delete(`/conversations/${id}`);
     }
 }
@@ -334,6 +340,7 @@ function closeMobileHistory(): void {
                     class="z-10 flex flex-1 flex-col overflow-hidden max-w-4xl w-full mx-auto"
                 >
                     <FlashAlerts />
+                    <ConfirmDialog />
 
                     <div class="flex flex-1 flex-col overflow-hidden">
                         <slot />

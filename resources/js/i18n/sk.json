@@ -2,6 +2,11 @@
     "app": {
         "name": "Laravel Inertia Stack"
     },
+    "common": {
+        "confirm": "Potvrdiť",
+        "cancel": "Zrušiť",
+        "confirm_title": "Naozaj?"
+    },
     "nav": {
         "skip_to_main": "Preskočiť na hlavný obsah",
         "dashboard": "Nástenka",

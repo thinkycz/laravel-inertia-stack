@@ -2,6 +2,11 @@
     "app": {
         "name": "Laravel Inertia Stack"
     },
+    "common": {
+        "confirm": "Confirm",
+        "cancel": "Cancel",
+        "confirm_title": "Are you sure?"
+    },
     "nav": {
         "skip_to_main": "Skip to main content",
         "dashboard": "Dashboard",
