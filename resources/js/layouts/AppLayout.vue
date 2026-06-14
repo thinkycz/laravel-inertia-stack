@@ -63,9 +63,7 @@ function logout(): void {
 async function deleteConversation(id: string): Promise<void> {
     const confirmDialog = useConfirmDialog();
 
-    if (
-        await confirmDialog.confirm(t('conversations.delete_confirm'))
-    ) {
+    if (await confirmDialog.confirm(t('conversations.delete_confirm'))) {
         router.delete(`/conversations/${id}`);
     }
 }

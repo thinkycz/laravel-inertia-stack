@@ -5,9 +5,12 @@ declare(strict_types=1);
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Thinkycz\LaravelCore\Http\Middleware\AuthShouldUseMiddleware;
 use Thinkycz\LaravelCore\Http\Middleware\SetPreferredLanguageMiddleware;
 use Thinkycz\LaravelCore\Http\Middleware\SetRequestFormatMiddleware;
@@ -63,7 +66,11 @@ return Application::configure(basePath: \dirname(__DIR__))
             ->hourly();
     })
     ->withExceptions(static function (Exceptions $exceptions): void {
-        $exceptions->render(static function (Illuminate\Validation\ValidationException $exception, Illuminate\Http\Request $request): mixed {
+        $exceptions->render(static function (ModelNotFoundException $exception, Request $request): never {
+            throw new NotFoundHttpException(previous: $exception);
+        });
+
+        $exceptions->render(static function (Illuminate\Validation\ValidationException $exception, Request $request): mixed {
             if ($request->header('X-Inertia') !== 'true') {
                 return null;
             }

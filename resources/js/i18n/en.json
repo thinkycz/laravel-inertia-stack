@@ -3,9 +3,16 @@
         "name": "Laravel Inertia Stack"
     },
     "common": {
-        "confirm": "Confirm",
         "cancel": "Cancel",
-        "confirm_title": "Are you sure?"
+        "closed": "Closed",
+        "confirm": "Confirm",
+        "confirm_title": "Are you sure?",
+        "no": "No",
+        "not_set": "Not set",
+        "open": "Open",
+        "today": "Today",
+        "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        "yes": "Yes"
     },
     "nav": {
         "skip_to_main": "Skip to main content",

@@ -22,12 +22,14 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: 'php artisan serve --host=127.0.0.1 --port=8000',
+        command:
+            'php artisan optimize:clear && php artisan migrate:fresh --env=testing --force && php artisan serve --host=127.0.0.1 --port=8000',
         url: 'http://127.0.0.1:8000',
         reuseExistingServer: !process.env.CI,
         timeout: 60000,
         env: {
             APP_ENV: 'testing',
+            CACHE_STORE: 'array',
             SESSION_SECURE_COOKIE: 'false',
             MAIL_MAILER: 'log',
             E2E_DISABLE_THROTTLE: 'true',

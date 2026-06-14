@@ -44,7 +44,7 @@ fix: ./node_modules/.bin/prettier ./vendor/bin/pint
 	${MAKE_PHP} ./vendor/bin/pint
 
 .PHONY: test
-test: ./vendor/bin/phpunit ./.env
+test: ./vendor/bin/pest ./.env
 	${MAKE_ARTISAN} optimize:clear
 	${MAKE_ARTISAN} cache:clear
 	${MAKE_ARTISAN} config:clear
@@ -52,7 +52,7 @@ test: ./vendor/bin/phpunit ./.env
 	${MAKE_ARTISAN} route:clear
 	${MAKE_ARTISAN} view:clear
 	${MAKE_ARTISAN} clear-compiled
-	${MAKE_ARTISAN} test
+	APP_ENV=testing ${MAKE_PHP} ./vendor/bin/pest --no-coverage
 
 .PHONY: e2e
 e2e: ./node_modules/.bin/playwright ./.env

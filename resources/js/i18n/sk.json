@@ -3,9 +3,16 @@
         "name": "Laravel Inertia Stack"
     },
     "common": {
-        "confirm": "Potvrdiť",
         "cancel": "Zrušiť",
-        "confirm_title": "Naozaj?"
+        "closed": "Zatvorené",
+        "confirm": "Potvrdiť",
+        "confirm_title": "Naozaj?",
+        "no": "Nie",
+        "not_set": "Nenastavené",
+        "open": "Otvoriť",
+        "today": "Dnes",
+        "weekdays": ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"],
+        "yes": "Áno"
     },
     "nav": {
         "skip_to_main": "Preskočiť na hlavný obsah",
