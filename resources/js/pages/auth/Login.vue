@@ -55,7 +55,9 @@ useBoundLocale();
                     required
                 />
                 <div class="flex items-start justify-between gap-3">
-                    <FieldError v-bind="fieldError(errors, 'password', 'login')" />
+                    <FieldError
+                        v-bind="fieldError(errors, 'password', 'login')"
+                    />
                     <Link
                         href="/forgot-password"
                         class="shrink-0 text-xs font-semibold text-primary hover:text-primary-container"

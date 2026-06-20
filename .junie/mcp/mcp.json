@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "/Users/longdo/Library/Application Support/Herd/bin/php83",
+            "args": [
+                "/Users/longdo/Herd/laravel-inertia-stack/artisan",
+                "boost:mcp"
+            ]
+        }
+    }
+}
