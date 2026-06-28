@@ -59,17 +59,12 @@ class ConversationRepository
      */
     public function findOwned(string $id, User $user): Conversation|null
     {
-        $conversation = Conversation::find($id);
+        $conversation = Conversation::query()
+            ->where('id', $id)
+            ->where('user_id', $this->userId($user))
+            ->first();
 
-        if ($conversation === null) {
-            return null;
-        }
-
-        if ($this->userId($user) !== Typer::assertNullableInt($conversation->getAttribute('user_id'))) {
-            return null;
-        }
-
-        return $conversation;
+        return $conversation instanceof Conversation ? $conversation : null;
     }
 
     /**

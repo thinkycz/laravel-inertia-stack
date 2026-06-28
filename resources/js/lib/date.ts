@@ -72,11 +72,11 @@ export function formatDateRange(
             year: 'numeric',
         });
 
-        return `${fmt.format(startDate)} - ${fmt.format(endDate)}`;
+        return `${fmt.format(startDate)} – ${fmt.format(endDate)}`;
     } catch {
         const f = (d: Date): string =>
             `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
 
-        return `${f(startDate)} - ${f(endDate)}`;
+        return `${f(startDate)} – ${f(endDate)}`;
     }
 }

@@ -13,6 +13,7 @@ use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Ai\Models\Conversation;
 use Laravel\Ai\Models\ConversationMessage;
@@ -48,14 +49,16 @@ class RunChatAgentJob implements ShouldQueue
         $user = $this->user($run);
         $this->authenticateAs($user);
 
-        $run->forceFill([
-            'status' => AgentRun::STATUS_RUNNING,
-            'started_at' => \now(),
-        ])->save();
+        DB::transaction(function () use ($runs, $run): void {
+            $run->forceFill([
+                'status' => AgentRun::STATUS_RUNNING,
+                'started_at' => \now(),
+            ])->save();
 
-        $runs->recordEvent($run, AgentRunEvent::TYPE_RUN_STARTED, [
-            'status' => AgentRun::STATUS_RUNNING,
-        ]);
+            $runs->recordEvent($run, AgentRunEvent::TYPE_RUN_STARTED, [
+                'status' => AgentRun::STATUS_RUNNING,
+            ]);
+        });
 
         $context->setConversationId($run->getConversationId());
 
@@ -110,17 +113,19 @@ class RunChatAgentJob implements ShouldQueue
 
             $assistantMessageId = $this->persistAssistantMessage($run, $events, $assistantContent, $user);
 
-            $run->forceFill([
-                'status' => AgentRun::STATUS_COMPLETED,
-                'assistant_message_id' => $assistantMessageId,
-                'assistant_content' => $assistantContent,
-                'finished_at' => \now(),
-            ])->save();
+            DB::transaction(function () use ($runs, $run, $assistantMessageId, $assistantContent): void {
+                $run->forceFill([
+                    'status' => AgentRun::STATUS_COMPLETED,
+                    'assistant_message_id' => $assistantMessageId,
+                    'assistant_content' => $assistantContent,
+                    'finished_at' => \now(),
+                ])->save();
 
-            $runs->recordEvent($run, AgentRunEvent::TYPE_RUN_COMPLETED, [
-                'status' => AgentRun::STATUS_COMPLETED,
-                'assistant_message_id' => $assistantMessageId,
-            ]);
+                $runs->recordEvent($run, AgentRunEvent::TYPE_RUN_COMPLETED, [
+                    'status' => AgentRun::STATUS_COMPLETED,
+                    'assistant_message_id' => $assistantMessageId,
+                ]);
+            });
         } catch (Throwable $throwable) {
             $run = $this->freshRun($run);
 
@@ -130,17 +135,19 @@ class RunChatAgentJob implements ShouldQueue
                 return;
             }
 
-            $run->forceFill([
-                'status' => AgentRun::STATUS_FAILED,
-                'assistant_content' => $assistantContent,
-                'error' => $throwable->getMessage(),
-                'finished_at' => \now(),
-            ])->save();
+            DB::transaction(function () use ($runs, $run, $assistantContent, $throwable): void {
+                $run->forceFill([
+                    'status' => AgentRun::STATUS_FAILED,
+                    'assistant_content' => $assistantContent,
+                    'error' => $throwable->getMessage(),
+                    'finished_at' => \now(),
+                ])->save();
 
-            $runs->recordEvent($run, AgentRunEvent::TYPE_RUN_FAILED, [
-                'status' => AgentRun::STATUS_FAILED,
-                'error' => $throwable->getMessage(),
-            ]);
+                $runs->recordEvent($run, AgentRunEvent::TYPE_RUN_FAILED, [
+                    'status' => AgentRun::STATUS_FAILED,
+                    'error' => $throwable->getMessage(),
+                ]);
+            });
         }
     }
 
@@ -234,13 +241,15 @@ class RunChatAgentJob implements ShouldQueue
      */
     private function cancel(AgentRunService $runs, AgentRun $run): void
     {
-        $run->forceFill([
-            'status' => AgentRun::STATUS_CANCELLED,
-            'finished_at' => \now(),
-        ])->save();
+        DB::transaction(function () use ($runs, $run): void {
+            $run->forceFill([
+                'status' => AgentRun::STATUS_CANCELLED,
+                'finished_at' => \now(),
+            ])->save();
 
-        $runs->recordEvent($run, AgentRunEvent::TYPE_RUN_CANCELLED, [
-            'status' => AgentRun::STATUS_CANCELLED,
-        ]);
+            $runs->recordEvent($run, AgentRunEvent::TYPE_RUN_CANCELLED, [
+                'status' => AgentRun::STATUS_CANCELLED,
+            ]);
+        });
     }
 }

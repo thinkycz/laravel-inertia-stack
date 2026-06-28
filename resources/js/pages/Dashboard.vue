@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, onBeforeUnmount } from 'vue';
+import { ref, watch, nextTick, computed } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import type {
     AgentRunSnapshot,
@@ -254,12 +254,6 @@ async function onCancelRun(): Promise<void> {
 const activeRunSnapshot = computed<AgentRunSnapshot | null>(
     () => bridge.activeRun.value,
 );
-
-onBeforeUnmount(() => {
-    // The bridge composable already registers its own onBeforeUnmount to
-    // abort the polling fetch; nothing to do here. The ref is kept so the
-    // abort lifecycle is in one place.
-});
 
 const isRunActive = computed<boolean>(
     () =>

@@ -49,7 +49,7 @@ class AgentRunStreamController
                     ->get();
 
                 foreach ($events as $event) {
-                    $lastEventId = $event->getKey();
+                    $lastEventId = $event->getId();
                     yield $this->sseEvent($event);
                 }
 
@@ -64,7 +64,11 @@ class AgentRunStreamController
             }
 
             yield "data: [DONE]\n\n";
-        }, headers: ['Content-Type' => 'text/event-stream']);
+        }, headers: [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no',
+        ]);
     }
 
     /**
@@ -73,7 +77,7 @@ class AgentRunStreamController
     private function sseEvent(AgentRunEvent $event): string
     {
         return 'data: ' . \json_encode([
-            'id' => $event->getKey(),
+            'id' => $event->getId(),
             'type' => $event->getType(),
             ...$event->getPayload(),
         ], \JSON_THROW_ON_ERROR) . "\n\n";

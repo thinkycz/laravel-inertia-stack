@@ -43,6 +43,14 @@ class AgentRunEvent extends BaseModel
     }
 
     /**
+     * Id getter.
+     */
+    public function getId(): int
+    {
+        return $this->assertInt('id');
+    }
+
+    /**
      * Run id getter.
      */
     public function getRunId(): string

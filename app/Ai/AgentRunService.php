@@ -9,6 +9,7 @@ use App\Jobs\RunChatAgentJob;
 use App\Models\AgentRun;
 use App\Models\AgentRunEvent;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Ai\Models\Conversation;
 use Laravel\Ai\Models\ConversationMessage;
@@ -31,25 +32,30 @@ class AgentRunService
             throw new AgentRunAlreadyActiveException($activeRun);
         }
 
-        $userMessageId = $this->persistUserMessage(Typer::assertString($conversation->getKey()), $prompt, $user);
+        /** @var array{run: AgentRun, conversation: Conversation} $result */
+        $result = DB::transaction(function () use ($user, $prompt, $conversation): array {
+            $userMessageId = $this->persistUserMessage(Typer::assertString($conversation->getKey()), $prompt, $user);
 
-        $run = Typer::assertInstance(AgentRun::query()->create([
-            'id' => (string) Str::uuid(),
-            'conversation_id' => $conversation->getKey(),
-            'user_id' => $user->getKey(),
-            'status' => AgentRun::STATUS_QUEUED,
-            'prompt' => $prompt,
-            'user_message_id' => $userMessageId,
-            'assistant_message_id' => null,
-            'assistant_content' => '',
-            'error' => null,
-            'started_at' => null,
-            'finished_at' => null,
-        ]), AgentRun::class);
+            $run = Typer::assertInstance(AgentRun::query()->create([
+                'id' => (string) Str::uuid(),
+                'conversation_id' => $conversation->getKey(),
+                'user_id' => $user->getKey(),
+                'status' => AgentRun::STATUS_QUEUED,
+                'prompt' => $prompt,
+                'user_message_id' => $userMessageId,
+                'assistant_message_id' => null,
+                'assistant_content' => '',
+                'error' => null,
+                'started_at' => null,
+                'finished_at' => null,
+            ]), AgentRun::class);
 
-        Resolver::resolveQueueingDispatcher()->dispatch(new RunChatAgentJob($run->getId()));
+            return ['run' => $run, 'conversation' => $conversation];
+        });
 
-        return ['run' => $run, 'conversation' => $conversation];
+        Resolver::resolveQueueingDispatcher()->dispatch(new RunChatAgentJob($result['run']->getId()));
+
+        return $result;
     }
 
     /**
