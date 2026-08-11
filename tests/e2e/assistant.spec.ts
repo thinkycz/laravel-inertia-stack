@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 
 async function register(page: Page) {
     const email = `assistant-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
@@ -12,6 +12,60 @@ async function register(page: Page) {
     await page.waitForURL(/\/dashboard/);
 }
 
+async function fulfillStream(route: Route, parts: object[]) {
+    await route.fulfill({
+        status: 200,
+        headers: {
+            'Content-Type': 'text/event-stream',
+            'x-vercel-ai-ui-message-stream': 'v1',
+        },
+        body: `${parts.map((part) => `data: ${JSON.stringify(part)}\n\n`).join('')}data: [DONE]\n\n`,
+    });
+}
+
+function textFixture(text: string): object[] {
+    return [
+        { type: 'start', messageId: 'assistant-message' },
+        { type: 'text-start', id: 'text-part' },
+        { type: 'text-delta', id: 'text-part', delta: text },
+        { type: 'text-end', id: 'text-part' },
+        { type: 'finish', finishReason: 'stop' },
+    ];
+}
+
+function approvalContinuationFixture(text: string, denied = false): object[] {
+    return [
+        { type: 'start', messageId: 'assistant-approval' },
+        {
+            type: denied ? 'tool-output-denied' : 'tool-output-available',
+            toolCallId: 'notification-call',
+            ...(denied ? {} : { output: 'Notification queued.' }),
+        },
+        { type: 'text-start', id: 'continuation-text' },
+        { type: 'text-delta', id: 'continuation-text', delta: text },
+        { type: 'text-end', id: 'continuation-text' },
+        { type: 'finish', finishReason: 'stop' },
+    ];
+}
+
+function approvalFixture(): object[] {
+    return [
+        { type: 'start', messageId: 'assistant-approval' },
+        {
+            type: 'tool-input-available',
+            toolCallId: 'notification-call',
+            toolName: 'SendTestNotificationTool',
+            input: { subject: 'Original subject', message: 'Original message' },
+        },
+        {
+            type: 'tool-approval-request',
+            toolCallId: 'notification-call',
+            approvalId: 'notification-call',
+        },
+        { type: 'finish', finishReason: 'tool-calls' },
+    ];
+}
+
 test.describe('Assistant chat UI', () => {
     test('mobile users can open conversation history', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
@@ -22,27 +76,129 @@ test.describe('Assistant chat UI', () => {
         await expect(page.getByText('No conversations yet')).toBeVisible();
     });
 
-    test('failed first stream shows the error and removes optimistic history', async ({
+    test('renders an ordinary Vercel protocol response', async ({ page }) => {
+        await register(page);
+        await page.route('**/agent/chat', (route) =>
+            fulfillStream(route, textFixture('Hello from the assistant')),
+        );
+
+        await page.getByPlaceholder('Type a message...').fill('Hello');
+        await page.keyboard.press('Enter');
+
+        await expect(page.getByText('Hello from the assistant')).toBeVisible();
+    });
+
+    test('allows notification arguments to be edited before approval', async ({
         page,
     }) => {
         await register(page);
+        let continuationBody: Record<string, unknown> | null = null;
 
-        await page.route('**/conversations', async (route) => {
-            if (route.request().method() !== 'POST') {
-                await route.fallback();
+        await page.route('**/agent/chat', async (route) => {
+            const body = route.request().postDataJSON() as Record<
+                string,
+                unknown
+            >;
+
+            if ('decisions' in body) {
+                continuationBody = body;
+                await fulfillStream(
+                    route,
+                    approvalContinuationFixture('Notification queued'),
+                );
 
                 return;
             }
 
-            await route.fulfill({
-                status: 200,
-                headers: {
-                    'Content-Type': 'text/event-stream',
-                    'X-Conversation-ID': 'e2e-failed-conversation',
-                },
-                body: 'data: {"type":"error","message":"Failed to generate response. Please try again."}\n\n',
-            });
+            await fulfillStream(route, approvalFixture());
         });
+
+        await page
+            .getByPlaceholder('Type a message...')
+            .fill('Send a test notification');
+        await page.keyboard.press('Enter');
+
+        await expect(
+            page.getByRole('region', { name: 'Approve test notification' }),
+        ).toBeVisible();
+        await page.getByLabel('Subject').fill('Edited subject');
+        await page
+            .getByRole('textbox', { name: 'Message', exact: true })
+            .fill('Edited message');
+        await page.getByRole('button', { name: 'Approve and send' }).click();
+
+        await expect(
+            page.getByText('Notification queued', { exact: true }),
+        ).toBeVisible();
+        expect(continuationBody).toMatchObject({
+            decisions: {
+                'notification-call': {
+                    action: 'approve',
+                    arguments: {
+                        subject: 'Edited subject',
+                        message: 'Edited message',
+                    },
+                },
+            },
+        });
+    });
+
+    test('submits an optional rejection explanation', async ({ page }) => {
+        await register(page);
+        let continuationBody: Record<string, unknown> | null = null;
+
+        await page.route('**/agent/chat', async (route) => {
+            const body = route.request().postDataJSON() as Record<
+                string,
+                unknown
+            >;
+
+            if ('decisions' in body) {
+                continuationBody = body;
+                await fulfillStream(
+                    route,
+                    approvalContinuationFixture('Understood', true),
+                );
+
+                return;
+            }
+
+            await fulfillStream(route, approvalFixture());
+        });
+
+        await page
+            .getByPlaceholder('Type a message...')
+            .fill('Send a test notification');
+        await page.keyboard.press('Enter');
+        await page
+            .getByLabel('Reason for rejection (optional)')
+            .fill('Use a shorter message.');
+        await page.getByRole('button', { name: 'Reject' }).click();
+
+        await expect(
+            page.getByText('Understood', { exact: true }),
+        ).toBeVisible();
+        expect(continuationBody).toMatchObject({
+            decisions: {
+                'notification-call': {
+                    action: 'reject',
+                    result: 'Use a shorter message.',
+                },
+            },
+        });
+    });
+
+    test('renders a Vercel protocol stream error', async ({ page }) => {
+        await register(page);
+        await page.route('**/agent/chat', (route) =>
+            fulfillStream(route, [
+                { type: 'start', messageId: 'assistant-error' },
+                {
+                    type: 'error',
+                    errorText: 'Failed to generate response. Please try again.',
+                },
+            ]),
+        );
 
         await page
             .getByPlaceholder('Type a message...')
@@ -52,8 +208,5 @@ test.describe('Assistant chat UI', () => {
         await expect(
             page.getByText('Failed to generate response. Please try again.'),
         ).toBeVisible();
-        await expect(
-            page.getByRole('link', { name: /Hello failing AI/ }),
-        ).toHaveCount(0);
     });
 });

@@ -1,272 +1,235 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, onBeforeUnmount } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
+import { useChat } from '@ai-sdk/vue';
+import {
+    DefaultChatTransport,
+    getToolName,
+    isToolUIPart,
+    lastAssistantMessageIsCompleteWithApprovalResponses,
+    type UIMessage,
+} from 'ai';
+import { Bot, Send, Sparkles, Square, User } from '@lucide/vue';
+import { useI18n } from 'vue-i18n';
+import NotificationApprovalCard from '@/components/agent/NotificationApprovalCard.vue';
+import { useActiveConversation } from '@/composables/useActiveConversation';
+import { useBoundLocale } from '@/composables/useBoundLocale';
+import AppLayout from '@/layouts/AppLayout.vue';
+import {
+    approveNotification,
+    hasPendingApprovals,
+    messageText,
+    rejectTool,
+} from '@/lib/agentChat';
 import type {
-    AgentRunSnapshot,
+    AgentToolDecision,
     ChatConversation,
-    ChatMessage,
+    NotificationApprovalArguments,
     SharedProps,
 } from '@/types';
-import { useI18n } from 'vue-i18n';
-import { Send, Sparkles, Bot, User } from '@lucide/vue';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { useBoundLocale } from '@/composables/useBoundLocale';
-import { useActiveConversation } from '@/composables/useActiveConversation';
-import { useAgentRunBridge } from '@/composables/useAgentRunBridge';
-import RunStatusBadge from '@/components/agent/RunStatusBadge.vue';
-
-interface LocalMessage extends ChatMessage {
-    id: string;
-}
 
 const props = defineProps<{
     conversation?: ChatConversation;
-    activeRun?: AgentRunSnapshot | null;
 }>();
 
 const { t } = useI18n();
 useBoundLocale();
-const { pendingConversationId } = useActiveConversation();
-const page = usePage<SharedProps>();
 
+const page = usePage<SharedProps>();
+const { pendingConversationId } = useActiveConversation();
+const conversationId = ref<string | null>(props.conversation?.id ?? null);
 const inputMessage = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 const chatTextarea = ref<HTMLTextAreaElement | null>(null);
+const decisions = ref<Record<string, AgentToolDecision>>({});
+const latestSubmittedMessage = ref('');
+const navigateAfterFinish = ref(false);
 
-const localMessages = ref<LocalMessage[]>([]);
-const localProcessing = ref(false);
-const currentTool = ref<string | null>(null);
-// Tracks the index of the assistant message currently being streamed,
-// so the loading indicator only shows for that specific bubble.
-const streamingMsgIndex = ref(-1);
-
-let messageIdCounter = 0;
-function generateMessageId(): string {
-    return `msg-${++messageIdCounter}`;
-}
-
-let isScrollScheduled = false;
+const csrfToken =
+    document
+        .querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
+        ?.getAttribute('content') ?? '';
 
 function scrollToBottom(): void {
-    if (isScrollScheduled) {
-        return;
-    }
-
-    isScrollScheduled = true;
-    nextTick(() => {
+    void nextTick(() => {
         if (messagesContainer.value) {
             messagesContainer.value.scrollTop =
                 messagesContainer.value.scrollHeight;
         }
-        isScrollScheduled = false;
     });
 }
 
-// Suggestion chips — icons are module-level constants so no need for computed.
-const suggestions = [
-    { icon: Sparkles, textKey: 'dashboard.suggestions.inertia' as const },
-    { icon: Sparkles, textKey: 'dashboard.suggestions.route' as const },
-    { icon: Sparkles, textKey: 'dashboard.suggestions.schema' as const },
-] as const;
-
 function resizeTextarea(): void {
-    if (chatTextarea.value) {
-        chatTextarea.value.style.height = 'auto';
-        chatTextarea.value.style.height = `${chatTextarea.value.scrollHeight}px`;
-    }
-}
-
-watch(inputMessage, () => {
-    nextTick(resizeTextarea);
-});
-
-const bridge = useAgentRunBridge({
-    initialRun: props.activeRun ?? null,
-    onRunStarted: () => {
-        // No-op: submitMessage handles the optimistic sidebar insert after
-        // bridge.start() resolves, and on mount there is nothing to insert.
-    },
-    onTextDelta: (delta) => {
-        if (
-            streamingMsgIndex.value >= 0 &&
-            streamingMsgIndex.value < localMessages.value.length
-        ) {
-            const current = localMessages.value[streamingMsgIndex.value];
-            current.content = (current.content ?? '') + delta;
-            scrollToBottom();
-        }
-    },
-    onToolActivity: (tool) => {
-        currentTool.value = tool;
-    },
-    onTerminal: (status, error) => {
-        if (
-            streamingMsgIndex.value >= 0 &&
-            streamingMsgIndex.value < localMessages.value.length
-        ) {
-            const bubble = localMessages.value[streamingMsgIndex.value];
-
-            if (status === 'failed' && error !== null) {
-                bubble.content = error;
-            } else if (status === 'cancelled') {
-                bubble.content = (bubble.content ?? '') + '\n\n[cancelled]';
-            }
-        }
-
-        currentTool.value = null;
-        localProcessing.value = false;
-
-        if (status === 'completed') {
-            void router.reload({ only: ['conversation', 'active_run'] });
-        }
-    },
-    onError: (message) => {
-        if (
-            streamingMsgIndex.value >= 0 &&
-            streamingMsgIndex.value < localMessages.value.length
-        ) {
-            localMessages.value[streamingMsgIndex.value].content = message;
-        }
-
-        currentTool.value = null;
-        localProcessing.value = false;
-    },
-});
-
-function selectSuggestion(text: string): void {
-    inputMessage.value = text;
-}
-
-function applySnapshot(
-    conv: ChatConversation | undefined,
-    run: AgentRunSnapshot | null,
-): void {
-    if (conv) {
-        localMessages.value = conv.messages.map((m) => ({
-            id: generateMessageId(),
-            role: m.role,
-            content: m.content,
-        }));
-    } else {
-        localMessages.value = [];
-    }
-
-    if (run !== null && (run.status === 'queued' || run.status === 'running')) {
-        const newIndex =
-            localMessages.value.push({
-                id: generateMessageId(),
-                role: 'assistant',
-                content: run.assistant_content,
-            }) - 1;
-        streamingMsgIndex.value = newIndex;
-        localProcessing.value = true;
-    } else {
-        streamingMsgIndex.value = -1;
-        localProcessing.value = false;
-    }
-
-    scrollToBottom();
-}
-
-watch(
-    [() => props.conversation, () => props.activeRun],
-    ([newConv, newActiveRun]) => {
-        applySnapshot(newConv, newActiveRun ?? null);
-    },
-    { immediate: true },
-);
-
-async function submitMessage(): Promise<void> {
-    if (!inputMessage.value.trim() || localProcessing.value) {
+    if (!chatTextarea.value) {
         return;
     }
 
-    const promptText = inputMessage.value;
-    inputMessage.value = '';
+    chatTextarea.value.style.height = 'auto';
+    chatTextarea.value.style.height = `${chatTextarea.value.scrollHeight}px`;
+}
 
-    // Remove any leftover empty assistant bubbles from a previous failed/incomplete run.
-    while (
-        localMessages.value.length > 0 &&
-        localMessages.value[localMessages.value.length - 1].role ===
-            'assistant' &&
-        (localMessages.value[localMessages.value.length - 1].content ?? '') ===
-            ''
-    ) {
-        localMessages.value.pop();
+function registerConversation(response: Response): void {
+    const resolvedId = response.headers.get('x-conversation-id');
+
+    if (!resolvedId || conversationId.value === resolvedId) {
+        return;
     }
 
-    // Instantly append user message and empty assistant message block.
-    localMessages.value.push({
-        id: generateMessageId(),
-        role: 'user',
-        content: promptText,
-    });
-    streamingMsgIndex.value =
-        localMessages.value.push({
-            id: generateMessageId(),
-            role: 'assistant',
-            content: '',
-        }) - 1;
-    localProcessing.value = true;
-    scrollToBottom();
+    conversationId.value = resolvedId;
+    pendingConversationId.value = resolvedId;
+    navigateAfterFinish.value = props.conversation === undefined;
 
-    try {
-        const started = await bridge.start({
-            prompt: promptText,
-            conversationId: props.conversation?.id ?? null,
+    if (!page.props.conversations.some((item) => item.id === resolvedId)) {
+        page.props.conversations.unshift({
+            id: resolvedId,
+            title:
+                latestSubmittedMessage.value.length > 100
+                    ? `${latestSubmittedMessage.value.slice(0, 100)}…`
+                    : latestSubmittedMessage.value,
+            updated_at: new Date().toISOString(),
         });
-
-        // For brand-new conversations, optimistically surface the id in the
-        // sidebar and ask AppLayout to highlight it without a full navigation.
-        if (!props.conversation && page.props.conversations) {
-            const title =
-                promptText.length > 35
-                    ? `${promptText.slice(0, 35)}...`
-                    : promptText;
-            page.props.conversations.unshift({
-                id: started.conversation_id,
-                title,
-                updated_at: new Date().toISOString(),
-            });
-            pendingConversationId.value = started.conversation_id;
-        }
-    } catch (e: unknown) {
-        console.error('Failed to start agent run:', e);
-        if (
-            streamingMsgIndex.value >= 0 &&
-            streamingMsgIndex.value < localMessages.value.length
-        ) {
-            localMessages.value[streamingMsgIndex.value].content =
-                e instanceof Error && e.message
-                    ? e.message
-                    : t('agent.error_generic');
-        }
-        localProcessing.value = false;
-        streamingMsgIndex.value = -1;
     }
 }
 
-async function onCancelRun(): Promise<void> {
-    await bridge.cancel();
-}
+const transport = new DefaultChatTransport<UIMessage>({
+    api: '/agent/chat',
+    credentials: 'same-origin',
+    headers: {
+        Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+    },
+    fetch: async (input, init) => {
+        const response = await fetch(input, init);
+        registerConversation(response);
 
-// Bypass Vue's reactivity for the ref returned by the bridge composable.
-const activeRunSnapshot = computed<AgentRunSnapshot | null>(
-    () => bridge.activeRun.value,
-);
+        return response;
+    },
+    prepareSendMessagesRequest: ({ messages: requestMessages, body }) => {
+        if (body && 'decisions' in body) {
+            return {
+                body: {
+                    conversation_id: conversationId.value,
+                    decisions: body.decisions,
+                },
+            };
+        }
 
-onBeforeUnmount(() => {
-    // The bridge composable already registers its own onBeforeUnmount to
-    // abort the polling fetch; nothing to do here. The ref is kept so the
-    // abort lifecycle is in one place.
+        const userMessage = [...requestMessages]
+            .reverse()
+            .find((message) => message.role === 'user');
+
+        return {
+            body: {
+                message: userMessage ? messageText(userMessage) : '',
+                conversation_id: conversationId.value,
+            },
+        };
+    },
 });
 
-const isRunActive = computed<boolean>(
-    () =>
-        activeRunSnapshot.value !== null &&
-        (activeRunSnapshot.value.status === 'queued' ||
-            activeRunSnapshot.value.status === 'running'),
+const { messages, status, error, sendMessage, stop, addToolApprovalResponse } =
+    useChat<UIMessage>({
+        id: props.conversation?.id ?? 'new-agent-chat',
+        messages: props.conversation?.messages ?? [],
+        transport,
+        sendAutomaticallyWhen:
+            lastAssistantMessageIsCompleteWithApprovalResponses,
+        onFinish: () => {
+            scrollToBottom();
+
+            if (navigateAfterFinish.value && conversationId.value) {
+                const id = conversationId.value;
+                navigateAfterFinish.value = false;
+                pendingConversationId.value = null;
+                router.visit(`/conversations/${id}`);
+            }
+        },
+    });
+
+const isStreaming = computed(
+    () => status.value === 'submitted' || status.value === 'streaming',
 );
+const hasPendingApproval = computed(() => hasPendingApprovals(messages.value));
+
+const suggestions = [
+    'dashboard.suggestions.inertia',
+    'dashboard.suggestions.route',
+    'dashboard.suggestions.schema',
+] as const;
+
+watch(inputMessage, () => void nextTick(resizeTextarea));
+watch(messages, scrollToBottom, { deep: true });
+watch(
+    () => props.conversation,
+    (conversation) => {
+        conversationId.value = conversation?.id ?? null;
+        messages.value = conversation?.messages ?? [];
+        decisions.value = {};
+    },
+);
+
+function selectSuggestion(key: (typeof suggestions)[number]): void {
+    inputMessage.value = t(key);
+}
+
+async function submitMessage(): Promise<void> {
+    const text = inputMessage.value.trim();
+
+    if (!text || isStreaming.value || hasPendingApproval.value) {
+        return;
+    }
+
+    latestSubmittedMessage.value = text;
+    inputMessage.value = '';
+    await sendMessage({ text });
+}
+
+async function approveTool(
+    approvalId: string,
+    argumentsValue: NotificationApprovalArguments,
+): Promise<void> {
+    decisions.value[approvalId] = approveNotification(argumentsValue);
+
+    await addToolApprovalResponse({
+        id: approvalId,
+        approved: true,
+        options: { body: { decisions: { ...decisions.value } } },
+    });
+}
+
+async function rejectApproval(
+    approvalId: string,
+    result: string,
+): Promise<void> {
+    decisions.value[approvalId] = rejectTool(result);
+
+    await addToolApprovalResponse({
+        id: approvalId,
+        approved: false,
+        reason: result.trim() || undefined,
+        options: { body: { decisions: { ...decisions.value } } },
+    });
+}
+
+function notificationArguments(
+    part: UIMessage['parts'][number],
+): NotificationApprovalArguments {
+    if (!isToolUIPart(part) || typeof part.input !== 'object' || !part.input) {
+        return { subject: '', message: '' };
+    }
+
+    const input = part.input as Record<string, unknown>;
+
+    return {
+        subject: typeof input.subject === 'string' ? input.subject : '',
+        message: typeof input.message === 'string' ? input.message : '',
+    };
+}
+
+function outputText(output: unknown): string {
+    return typeof output === 'string' ? output : JSON.stringify(output);
+}
 </script>
 
 <template>
@@ -274,79 +237,129 @@ const isRunActive = computed<boolean>(
         :title="conversation ? conversation.title : t('dashboard.title')"
     >
         <div class="flex flex-1 flex-col overflow-hidden">
-            <!-- Active Conversation State -->
             <div
-                v-if="localMessages.length > 0"
+                v-if="messages.length > 0"
                 ref="messagesContainer"
-                class="flex-1 overflow-y-auto space-y-4 pr-2 mb-4 scrollbar-thin"
+                class="mb-4 flex-1 space-y-4 overflow-y-auto pr-2 scrollbar-thin"
             >
                 <div
-                    v-for="(msg, idx) in localMessages"
-                    :key="msg.id"
-                    class="flex gap-4 p-4 rounded-2xl border transition-all"
-                    :class="[
-                        msg.role === 'user'
-                            ? 'bg-primary/5 border-primary/10 ml-12 justify-end text-right'
-                            : 'bg-surface-container-lowest border-outline-glass mr-12',
-                    ]"
+                    v-for="message in messages"
+                    :key="message.id"
+                    class="flex gap-4 rounded-2xl border p-4 transition-all"
+                    :class="
+                        message.role === 'user'
+                            ? 'ml-12 justify-end border-primary/10 bg-primary/5 text-right'
+                            : 'mr-12 border-outline-glass bg-surface-container-lowest'
+                    "
                 >
-                    <!-- Role Avatar -->
                     <div
-                        v-if="msg.role !== 'user'"
+                        v-if="message.role !== 'user'"
                         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary text-white"
                     >
                         <Bot :size="16" />
                     </div>
 
-                    <div class="flex-1 space-y-1.5 overflow-hidden text-left">
+                    <div class="flex-1 space-y-2 overflow-hidden text-left">
                         <p class="text-xs font-bold text-on-surface">
                             {{
-                                msg.role === 'user'
+                                message.role === 'user'
                                     ? t('fields.user')
                                     : t('fields.assistant')
                             }}
                         </p>
-                        <!-- Message Content -->
-                        <div
-                            class="text-xs text-on-surface-variant whitespace-pre-wrap leading-relaxed"
+
+                        <template
+                            v-for="(part, partIndex) in message.parts"
+                            :key="`${message.id}-${partIndex}`"
                         >
-                            <span v-if="msg.content">{{ msg.content }}</span>
-                            <div
-                                v-else-if="
-                                    localProcessing && idx === streamingMsgIndex
-                                "
-                                class="flex gap-1 items-center py-1"
+                            <p
+                                v-if="part.type === 'text'"
+                                class="whitespace-pre-wrap text-xs leading-relaxed text-on-surface-variant"
                             >
+                                {{ part.text }}
+                            </p>
+
+                            <NotificationApprovalCard
+                                v-else-if="
+                                    isToolUIPart(part) &&
+                                    getToolName(part) ===
+                                        'SendTestNotificationTool' &&
+                                    part.state === 'approval-requested'
+                                "
+                                :arguments-value="notificationArguments(part)"
+                                :disabled="isStreaming"
+                                @approve="approveTool(part.approval.id, $event)"
+                                @reject="
+                                    rejectApproval(part.approval.id, $event)
+                                "
+                            />
+
+                            <div
+                                v-else-if="isToolUIPart(part)"
+                                class="rounded-lg border border-outline-glass bg-surface-container-low px-3 py-2 text-[11px] text-on-surface-variant"
+                            >
+                                <span class="font-bold text-on-surface">
+                                    {{ getToolName(part) }}
+                                </span>
                                 <span
-                                    class="h-1.5 w-1.5 animate-bounce bg-primary rounded-full [animation-delay:-0.3s]"
-                                ></span>
+                                    v-if="part.state === 'approval-responded'"
+                                >
+                                    — {{ t('agent.approval.processing') }}
+                                </span>
                                 <span
-                                    class="h-1.5 w-1.5 animate-bounce bg-primary rounded-full [animation-delay:-0.15s]"
-                                ></span>
+                                    v-else-if="part.state === 'output-denied'"
+                                >
+                                    — {{ t('agent.approval.rejected') }}
+                                </span>
                                 <span
-                                    class="h-1.5 w-1.5 animate-bounce bg-primary rounded-full"
-                                ></span>
+                                    v-else-if="
+                                        part.state === 'output-available'
+                                    "
+                                >
+                                    — {{ outputText(part.output) }}
+                                </span>
+                                <span v-else-if="part.state === 'output-error'">
+                                    — {{ part.errorText }}
+                                </span>
                             </div>
+                        </template>
+
+                        <div
+                            v-if="
+                                message.role === 'assistant' &&
+                                message.parts.length === 0 &&
+                                isStreaming
+                            "
+                            class="flex items-center gap-1 py-1"
+                        >
+                            <span
+                                class="h-1.5 w-1.5 animate-bounce rounded-full bg-primary [animation-delay:-0.3s]"
+                            ></span>
+                            <span
+                                class="h-1.5 w-1.5 animate-bounce rounded-full bg-primary [animation-delay:-0.15s]"
+                            ></span>
+                            <span
+                                class="h-1.5 w-1.5 animate-bounce rounded-full bg-primary"
+                            ></span>
                         </div>
                     </div>
 
                     <div
-                        v-if="msg.role === 'user'"
-                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-surface-container border border-outline-glass text-primary"
+                        v-if="message.role === 'user'"
+                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-outline-glass bg-surface-container text-primary"
                     >
                         <User :size="16" />
                     </div>
                 </div>
             </div>
 
-            <!-- Empty / New Chat State -->
             <div
                 v-else
-                class="flex-1 flex flex-col justify-center items-center max-w-2xl mx-auto w-full text-center space-y-8"
+                class="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center space-y-8 text-center"
             >
                 <div class="space-y-4">
                     <div
-                        class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-2"
+                        class="mb-2 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"
                     >
                         <Sparkles :size="24" />
                     </div>
@@ -356,70 +369,78 @@ const isRunActive = computed<boolean>(
                         {{ t('dashboard.how_can_i_help') }}
                     </h2>
                     <p
-                        class="text-xs text-on-surface-variant font-medium max-w-md"
+                        class="max-w-md text-xs font-medium text-on-surface-variant"
                     >
                         {{ t('dashboard.chat_description') }}
                     </p>
                 </div>
 
-                <!-- Prompt Suggestions Grid -->
-                <div class="grid gap-3 w-full sm:grid-cols-3">
+                <div class="grid w-full gap-3 sm:grid-cols-3">
                     <button
-                        v-for="(sug, sugIdx) in suggestions"
-                        :key="sugIdx"
-                        @click="selectSuggestion(t(sug.textKey))"
-                        class="flex flex-col items-start gap-2 p-4 text-left rounded-xl border border-outline-glass bg-surface-container-lowest hover:border-primary/30 transition-all cursor-pointer shadow-sm"
+                        v-for="key in suggestions"
+                        :key="key"
+                        type="button"
+                        class="flex cursor-pointer flex-col items-start gap-2 rounded-xl border border-outline-glass bg-surface-container-lowest p-4 text-left shadow-sm transition-all hover:border-primary/30"
+                        @click="selectSuggestion(key)"
                     >
-                        <component
-                            :is="sug.icon"
-                            class="text-primary"
-                            :size="14"
-                        />
+                        <Sparkles class="text-primary" :size="14" />
                         <span
-                            class="text-[11px] font-semibold text-on-surface leading-snug"
-                            >{{ t(sug.textKey) }}</span
+                            class="text-[11px] leading-snug font-semibold text-on-surface"
                         >
+                            {{ t(key) }}
+                        </span>
                     </button>
                 </div>
             </div>
 
-            <!-- Run Status Badge (above input) -->
-            <RunStatusBadge
-                v-if="
-                    isRunActive ||
-                    activeRunSnapshot?.status === 'failed' ||
-                    activeRunSnapshot?.status === 'cancelled'
-                "
-                :run="activeRunSnapshot"
-                :current-tool="currentTool"
-                @cancel="onCancelRun"
-            />
+            <p
+                v-if="error"
+                class="mx-auto mb-2 w-full max-w-3xl text-xs text-error-red"
+            >
+                {{ error.message || t('agent.error_generic') }}
+            </p>
 
-            <!-- Chat Input form -->
+            <p
+                v-if="hasPendingApproval"
+                class="mx-auto mb-2 w-full max-w-3xl text-[11px] text-on-surface-variant"
+            >
+                {{ t('agent.approval.prompt_disabled') }}
+            </p>
+
             <form
+                class="relative mx-auto mt-auto w-full max-w-3xl"
                 @submit.prevent="submitMessage"
-                class="relative max-w-3xl w-full mx-auto mt-auto"
             >
                 <div
-                    class="flex items-center rounded-2xl border border-outline-glass bg-surface-container-lowest p-2 shadow-lg focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all"
+                    class="flex items-center rounded-2xl border border-outline-glass bg-surface-container-lowest p-2 shadow-lg transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
                 >
                     <textarea
                         ref="chatTextarea"
                         v-model="inputMessage"
                         rows="1"
                         :placeholder="t('dashboard.type_message')"
-                        :disabled="isRunActive"
-                        class="flex-1 resize-none bg-transparent py-2 px-3 text-xs outline-none text-on-surface placeholder:text-on-surface-variant/50 max-h-32 overflow-y-auto scrollbar-none disabled:opacity-60"
-                        @keydown.enter.exact="submitMessage"
-                        @keydown.enter.shift.exact.prevent
+                        :disabled="isStreaming || hasPendingApproval"
+                        class="max-h-32 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-2 text-xs text-on-surface outline-none placeholder:text-on-surface-variant/50 disabled:opacity-60 scrollbar-none"
+                        @keydown.enter.exact.prevent="submitMessage"
                         @keydown.enter.meta.exact.prevent="submitMessage"
                         @keydown.enter.ctrl.exact.prevent="submitMessage"
                     ></textarea>
+
                     <button
+                        v-if="isStreaming"
+                        type="button"
+                        :aria-label="t('agent.stop')"
+                        class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-error-red text-white"
+                        @click="stop"
+                    >
+                        <Square :size="13" fill="currentColor" />
+                    </button>
+                    <button
+                        v-else
                         type="submit"
-                        :disabled="!inputMessage.trim() || localProcessing"
+                        :disabled="!inputMessage.trim() || hasPendingApproval"
                         :aria-label="t('dashboard.send')"
-                        class="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-container cursor-pointer shrink-0"
+                        class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-primary text-white transition-all hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <Send :size="14" />
                     </button>

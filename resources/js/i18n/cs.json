@@ -105,18 +105,21 @@
         "failed_response": "Nepodařilo se vygenerovat odpověď. Zkuste to prosím znovu."
     },
     "agent": {
-        "cancelled": "Zrušeno",
-        "cancel_run": "Zrušit běh",
-        "cancel_run_confirm": "Zrušit běžícího agenta? Váš postup bude ztracen.",
-        "clarification_hint": "Vyberte možnost, která nejlépe odpovídá vašemu záměru.",
-        "completed": "Dokončeno",
-        "error_generic": "Běh agenta selhal. Zkuste to prosím znovu.",
-        "failed": "Selhalo",
-        "queued": "Ve frontě",
-        "recommended": "Doporučeno",
-        "resume_existing": "Obnovuje se stávající běh…",
-        "running": "Běží…",
-        "tool_running": "Používá se {tool}…"
+        "error_generic": "Odpověď agenta selhala. Zkuste to prosím znovu.",
+        "stop": "Zastavit odpověď",
+        "approval": {
+            "title": "Schválit testovací oznámení",
+            "description": "Před odesláním na e-mail vašeho účtu oznámení zkontrolujte nebo upravte.",
+            "subject": "Předmět",
+            "message": "Zpráva",
+            "rejection_reason": "Důvod zamítnutí (volitelné)",
+            "rejection_placeholder": "Sdělte asistentovi, co má změnit",
+            "approve": "Schválit a odeslat",
+            "reject": "Zamítnout",
+            "processing": "Rozhodnutí se zpracovává…",
+            "rejected": "Zamítnuto",
+            "prompt_disabled": "Před odesláním další zprávy vyřešte všechna čekající schválení."
+        }
     },
     "locale": {
         "en": "Angličtina",

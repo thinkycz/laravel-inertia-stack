@@ -793,6 +793,8 @@ trait ParseTrait
 
     /**
      * Parse big decimal.
+     *
+     * @param int<0, max> $scale
      */
     public function parseBigDecimal(string $key, int $scale = 0, RoundingMode $roundingMode = RoundingMode::HalfUp): BigDecimal
     {
@@ -801,6 +803,8 @@ trait ParseTrait
 
     /**
      * Parse nullable file.
+     *
+     * @param int<0, max> $scale
      */
     public function parseNullableBigDecimal(string $key, int $scale = 0, RoundingMode $roundingMode = RoundingMode::HalfUp): BigDecimal|null
     {
@@ -808,7 +812,7 @@ trait ParseTrait
 
         if ($value instanceof BigNumber || \is_string($value) || \is_int($value) || \is_float($value)) {
             try {
-                return BigDecimal::of($value)->toScale($scale, $roundingMode);
+                return BigDecimal::of(\is_float($value) ? (string) $value : $value)->toScale($scale, $roundingMode);
             } catch (Throwable $th) {
                 return null;
             }
@@ -819,6 +823,8 @@ trait ParseTrait
 
     /**
      * Must parse file.
+     *
+     * @param int<0, max> $scale
      */
     public function mustParseBigDecimal(string $key, int $scale = 0, RoundingMode $roundingMode = RoundingMode::HalfUp): BigDecimal
     {
@@ -833,6 +839,8 @@ trait ParseTrait
 
     /**
      * Must parse nullable file.
+     *
+     * @param int<0, max> $scale
      */
     public function mustParseNullableBigDecimal(string $key, int $scale = 0, RoundingMode $roundingMode = RoundingMode::HalfUp): BigDecimal|null
     {
@@ -840,7 +848,7 @@ trait ParseTrait
 
         if ($value instanceof BigNumber || \is_string($value) || \is_int($value) || \is_float($value)) {
             try {
-                $value = BigDecimal::of($value)->toScale($scale, $roundingMode);
+                $value = BigDecimal::of(\is_float($value) ? (string) $value : $value)->toScale($scale, $roundingMode);
             } catch (Throwable $th) {
                 Panicker::message(__METHOD__, 'assertion failed', \compact('key', 'value'));
             }

@@ -105,18 +105,21 @@
         "failed_response": "Failed to generate response. Please try again."
     },
     "agent": {
-        "cancelled": "Cancelled",
-        "cancel_run": "Cancel run",
-        "cancel_run_confirm": "Cancel the running agent? Your progress will be lost.",
-        "clarification_hint": "Pick the option that best matches your intent.",
-        "completed": "Completed",
-        "error_generic": "The agent run failed. Please try again.",
-        "failed": "Failed",
-        "queued": "Queued",
-        "recommended": "Recommended",
-        "resume_existing": "Resuming existing run…",
-        "running": "Running…",
-        "tool_running": "Using {tool}…"
+        "error_generic": "The agent response failed. Please try again.",
+        "stop": "Stop response",
+        "approval": {
+            "title": "Approve test notification",
+            "description": "Review or edit the notification before it is sent to your account email.",
+            "subject": "Subject",
+            "message": "Message",
+            "rejection_reason": "Reason for rejection (optional)",
+            "rejection_placeholder": "Tell the assistant what should change",
+            "approve": "Approve and send",
+            "reject": "Reject",
+            "processing": "Processing decision…",
+            "rejected": "Rejected",
+            "prompt_disabled": "Resolve every pending approval before sending another message."
+        }
     },
     "locale": {
         "en": "English",

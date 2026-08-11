@@ -19,20 +19,7 @@ export interface FlashProps {
 export interface ConversationItem {
     id: string;
     title: string;
-    updated_at: string;
-}
-
-/**
- * A single chat message as serialized by `ConversationRepository`.
- *
- * `role` is intentionally a string (not a narrow union) because the
- * AI SDK may emit values such as `system` or `tool` that the frontend
- * does not branch on. `content` is nullable because persisted rows
- * may carry a `null` content (e.g. tool-call placeholders).
- */
-export interface ChatMessage {
-    role: string;
-    content: string | null;
+    updated_at: string | null;
 }
 
 /**
@@ -41,34 +28,24 @@ export interface ChatMessage {
 export interface ChatConversation {
     id: string;
     title: string;
-    messages: ChatMessage[];
+    messages: UIMessage[];
 }
 
 /**
- * A multiple-choice clarification produced by the
- * AskClarifyingQuestionsTool. `recommended_option` is the option text
- * the agent recommends (not its index) and may be null when the agent
- * does not express a preference.
+ * Editable arguments for the approved test-notification tool.
  */
-export interface AgentClarification {
-    question: string;
-    options: string[];
-    recommended_option: string | null;
+export interface NotificationApprovalArguments {
+    subject: string;
+    message: string;
 }
 
 /**
- * A snapshot of a background agent run, as serialized by
- * `AgentRunService::serializeActiveRun()` and shared with the dashboard
- * via Inertia. `last_event_id` lets the bridge resume polling without
- * replaying events the client has already seen.
+ * Approval continuation submitted to the Laravel AI SDK.
  */
-export interface AgentRunSnapshot {
-    id: string;
-    conversation_id: string;
-    status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
-    assistant_content: string;
-    last_event_id: number | null;
-    error: string | null;
+export interface AgentToolDecision {
+    action: 'approve' | 'reject';
+    arguments?: NotificationApprovalArguments;
+    result?: string;
 }
 
 export interface SharedProps {
@@ -82,3 +59,4 @@ export interface SharedProps {
     flash: FlashProps;
     errors: Record<string, string>;
 }
+import type { UIMessage } from 'ai';

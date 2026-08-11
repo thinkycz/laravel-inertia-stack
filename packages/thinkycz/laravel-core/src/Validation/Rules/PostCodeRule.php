@@ -70,7 +70,7 @@ class PostCodeRule implements ValidationRule
             return;
         }
 
-        $pattern = PostCodeData::PATTERNS[$iso2] ?? null;
+        $pattern = PostCodeData::PATTERNS[$iso2];
 
         if ($pattern === null) {
             return;

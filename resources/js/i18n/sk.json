@@ -105,18 +105,21 @@
         "failed_response": "Nepodarilo sa vygenerovať odpoveď. Skúste to prosím znova."
     },
     "agent": {
-        "cancelled": "Zrušené",
-        "cancel_run": "Zrušiť beh",
-        "cancel_run_confirm": "Zrušiť bežiaceho agenta? Váš postup bude stratený.",
-        "clarification_hint": "Vyberte možnosť, ktorá najlepšie zodpovedá vášmu zámeru.",
-        "completed": "Dokončené",
-        "error_generic": "Beh agenta zlyhal. Skúste to prosím znova.",
-        "failed": "Zlyhalo",
-        "queued": "V poradí",
-        "recommended": "Odporúčané",
-        "resume_existing": "Obnovuje sa existujúci beh…",
-        "running": "Beží…",
-        "tool_running": "Používa sa {tool}…"
+        "error_generic": "Odpoveď agenta zlyhala. Skúste to prosím znova.",
+        "stop": "Zastaviť odpoveď",
+        "approval": {
+            "title": "Schváliť testovacie oznámenie",
+            "description": "Pred odoslaním na e-mail vášho účtu oznámenie skontrolujte alebo upravte.",
+            "subject": "Predmet",
+            "message": "Správa",
+            "rejection_reason": "Dôvod zamietnutia (voliteľné)",
+            "rejection_placeholder": "Povedzte asistentovi, čo má zmeniť",
+            "approve": "Schváliť a odoslať",
+            "reject": "Zamietnuť",
+            "processing": "Rozhodnutie sa spracúva…",
+            "rejected": "Zamietnuté",
+            "prompt_disabled": "Pred odoslaním ďalšej správy vyriešte všetky čakajúce schválenia."
+        }
     },
     "locale": {
         "en": "Angličtina",
