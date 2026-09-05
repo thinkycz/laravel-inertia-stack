@@ -105,25 +105,26 @@
         "failed_response": "Nepodarilo sa vygenerovať odpoveď. Skúste to prosím znova."
     },
     "agent": {
-        "cancelled": "Zrušené",
-        "cancel_run": "Zrušiť beh",
-        "cancel_run_confirm": "Zrušiť bežiaceho agenta? Váš postup bude stratený.",
-        "clarification_hint": "Vyberte možnosť, ktorá najlepšie zodpovedá vášmu zámeru.",
-        "completed": "Dokončené",
-        "error_generic": "Beh agenta zlyhal. Skúste to prosím znova.",
-        "failed": "Zlyhalo",
-        "queued": "V poradí",
-        "recommended": "Odporúčané",
-        "resume_existing": "Obnovuje sa existujúci beh…",
-        "running": "Beží…",
-        "tool_running": "Používa sa {tool}…",
-        "cancel_failed": "Zrušenie sa nepodarilo. Skúste to znova.",
-        "connection_lost": "Spojenie bolo prerušené. Beh môže stále prebiehať.",
-        "run_unavailable": "Tento beh už nie je dostupný.",
-        "reconnecting": "Obnovovanie spojenia…",
-        "retry_connection": "Obnoviť spojenie",
-        "cancelling": "Rušenie…",
-        "clarification_tool": "Spresnenie"
+        "error_generic": "Asistent nemohol dokončiť odpoveď. Skúste to znova.",
+        "stop": "Zastaviť odpoveď",
+        "approval": {
+            "title": "Schváliť testovacie oznámenie",
+            "description": "Pred odoslaním na e-mail vášho účtu oznámenie skontrolujte alebo upravte.",
+            "subject": "Predmet",
+            "message": "Správa",
+            "rejection_reason": "Dôvod zamietnutia (voliteľné)",
+            "rejection_placeholder": "Povedzte asistentovi, čo má zmeniť",
+            "approve": "Schváliť a odoslať",
+            "reject": "Zamietnuť",
+            "processing": "Rozhodnutie sa spracúva…",
+            "rejected": "Zamietnuté",
+            "prompt_disabled": "Pred odoslaním ďalšej správy vyriešte všetky čakajúce schválenia.",
+            "tool_name": "Testovacie oznámenie",
+            "invalid": "Toto schválenie už nie je nevybavené. Obnovte konverzáciu."
+        },
+        "stopped": "Príjem odpovede bol na tomto zariadení zastavený. Pred pokračovaním obnovte uloženú konverzáciu.",
+        "refresh_conversation": "Obnoviť konverzáciu",
+        "conversation_busy": "Iná odpoveď sa stále spracúva. Pred pokračovaním obnovte konverzáciu."
     },
     "locale": {
         "en": "Angličtina",
@@ -132,10 +133,7 @@
     },
     "ai": {
         "errors": {
-            "provider_failed": "Asistent nemohol dokončiť odpoveď. Skúste to znova.",
-            "dispatch_failed": "Odpoveď sa nepodarilo zaradiť na spracovanie. Skúste to znova.",
-            "worker_failed": "Spracovanie sa zastavilo pred dokončením odpovede.",
-            "reconciliation_failed": "Vypršal čas na odpoveď. Skúste to znova."
+            "provider_failed": "Asistent nemohol dokončiť odpoveď. Skúste to znova."
         }
     }
 }

@@ -9,7 +9,7 @@ export default defineConfig({
     reporter: [['list'], ['html', { open: 'never' }]],
     timeout: 30000,
     use: {
-        baseURL: 'http://127.0.0.1:18765',
+        baseURL: 'http://127.0.0.1:18767',
         trace: 'on-first-retry',
         serviceWorkers: 'block',
         screenshot: 'only-on-failure',
@@ -24,7 +24,7 @@ export default defineConfig({
     ],
     webServer: {
         command: 'node tests/e2e/support/server.mjs',
-        url: 'http://127.0.0.1:18765/login',
+        url: 'http://127.0.0.1:18767/login',
         reuseExistingServer: false,
         gracefulShutdown: { signal: 'SIGTERM', timeout: 10000 },
         timeout: 60000,

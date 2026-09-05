@@ -37,6 +37,8 @@ return [
     */
 
     'conversations' => [
+        'connection' => $env->parseNullableString('AI_CONVERSATIONS_CONNECTION'),
+        'generate_title' => $env->parseNullableBool('AI_CONVERSATIONS_GENERATE_TITLE') ?? true,
         'tables' => [
             'conversations' => $env->parseNullableString('AI_CONVERSATIONS_TABLE') ?? 'agent_conversations',
             'messages' => $env->parseNullableString('AI_CONVERSATIONS_MESSAGES_TABLE') ?? 'agent_conversation_messages',
@@ -98,6 +100,12 @@ return [
             'secret_access_key' => $env->parseNullableString('AWS_SECRET_ACCESS_KEY'),
             'session_token' => $env->parseNullableString('AWS_SESSION_TOKEN'),
             'use_default_credential_provider' => $env->parseNullableBool('AWS_USE_DEFAULT_CREDENTIALS') ?? true,
+            'assume_role' => [
+                'arn' => $env->parseNullableString('AWS_BEDROCK_ASSUME_ROLE_ARN'),
+                'session_name' => $env->parseNullableString('AWS_BEDROCK_ASSUME_ROLE_SESSION_NAME'),
+                'duration_seconds' => $env->parseNullableInt('AWS_BEDROCK_ASSUME_ROLE_DURATION_SECONDS'),
+                'external_id' => $env->parseNullableString('AWS_BEDROCK_ASSUME_ROLE_EXTERNAL_ID'),
+            ],
         ],
 
         'cohere' => [
@@ -147,6 +155,12 @@ return [
             'key' => $env->parseNullableString('OPENAI_API_KEY'),
             'url' => $env->parseNullableString('OPENAI_URL') ?? 'https://api.openai.com/v1',
             'store' => $env->parseNullableBool('OPENAI_STORE') ?? true,
+        ],
+
+        'openai-compatible' => [
+            'driver' => 'openai-compatible',
+            'url' => $env->parseNullableString('OPENAI_COMPATIBLE_URL'),
+            'key' => $env->parseNullableString('OPENAI_COMPATIBLE_API_KEY'),
         ],
 
         'openrouter' => [

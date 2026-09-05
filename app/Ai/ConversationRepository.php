@@ -4,25 +4,17 @@ declare(strict_types=1);
 
 namespace App\Ai;
 
-use App\Models\AgentRun;
 use App\Models\User;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Laravel\Ai\Messages\AssistantMessage;
-use Laravel\Ai\Messages\Message;
-use Laravel\Ai\Messages\ToolResultMessage;
 use Laravel\Ai\Models\Conversation;
 use Laravel\Ai\Models\ConversationMessage;
-use Laravel\Ai\Responses\Data\ToolCall;
-use Laravel\Ai\Responses\Data\ToolResult;
-use Thinkycz\LaravelCore\Support\Config;
 use Thinkycz\LaravelCore\Support\Typer;
 
 class ConversationRepository
 {
     /**
-     * Maximum number of conversations surfaced in the sidebar payload.
+     * Maximum number of conversations surfaced in the sidebar.
      */
     public const int SIDEBAR_LIMIT = 50;
 
@@ -35,7 +27,7 @@ class ConversationRepository
     {
         $payload = [];
 
-        foreach ($user->conversations()->select(['id', 'title', 'updated_at'])->limit($limit)->get() as $conversation) {
+        foreach ($user->conversations()->select(['id', 'title', 'updated_at'])->orderByDesc('updated_at')->limit($limit)->get() as $conversation) {
             $updatedAt = $conversation->getAttribute('updated_at');
 
             $payload[] = [
@@ -49,87 +41,64 @@ class ConversationRepository
     }
 
     /**
-     * Find a conversation that belongs to the given user.
+     * Find a conversation through the participant's official polymorphic relation.
      */
     public function findOwned(string $id, User $user): Conversation|null
     {
-        $conversation = Conversation::query()
-            ->where('id', $id)
-            ->where('user_id', $this->userId($user))
-            ->first();
+        $conversation = $user->conversations()->whereKey($id)->first();
 
         return $conversation instanceof Conversation ? $conversation : null;
     }
 
     /**
-     * Delete a conversation and its stored messages.
+     * Delete a conversation and its stored SDK messages.
      */
     public function delete(Conversation $conversation): void
     {
-        DB::transaction(function () use ($conversation): void {
+        DB::transaction(static function () use ($conversation): void {
             $conversation->newQuery()->whereKey($conversation->getKey())->lockForUpdate()->first();
-            DB::table($this->messagesTable())->where('conversation_id', $this->conversationId($conversation))->delete();
+            $conversation->messages()->delete();
             $conversation->delete();
         });
     }
 
     /**
-     * Serialize persisted history, including partial terminal messages.
+     * Serialize a conversation and its stored SDK messages for the Vue AI client.
      *
-     * @return array{id: string, title: string, messages: list<array<string, mixed>>}
+     * @return array{id: string, title: string, messages: list<array{id: string, role: string, parts: list<array<string, mixed>>}>}
      */
     public function dashboardPayload(Conversation $conversation): array
     {
         $messages = [];
-        foreach (ConversationMessage::query()->where('conversation_id', $this->conversationId($conversation))
-            ->orderByDesc('id')->limit(100)->get()->reverse() as $message) {
-            $meta = Typer::assertArray($message->getAttribute('meta'));
-            $messages[] = [
-                'id' => Typer::assertString($message->getKey()),
-                'role' => Typer::assertString($message->getAttribute('role')),
-                'content' => Typer::assertString($message->getAttribute('content')),
-                'status' => Typer::assertString($message->getAttribute('status')),
-                'clarification' => $meta['clarification'] ?? null,
-                'clarification_answer' => $message->getAttribute('clarification_answer'),
-            ];
+
+        foreach ($conversation->messages()->orderByDesc('id')->limit(100)->get()->reverse() as $message) {
+            $messages[] = $this->messagePayload($message);
         }
 
-        return ['id' => $this->conversationId($conversation), 'title' => $this->title($conversation), 'messages' => $messages];
+        return [
+            'id' => $this->conversationId($conversation),
+            'title' => $this->title($conversation),
+            'messages' => $messages,
+        ];
     }
 
     /**
-     * Supply completed prior exchanges only; the SDK appends the current prompt.
-     *
-     * @return list<Message>
+     * Resolve the latest message that still contains pending approvals.
      */
-    public function providerMessages(AgentRun $run): array
+    public function latestPendingMessageId(Conversation $conversation): string|null
     {
-        $messages = [];
-        $records = ConversationMessage::query()->where('conversation_id', $run->getConversationId())
-            ->where('status', AgentRun::STATUS_COMPLETED)->where('id', '<', $run->getUserMessageId())
-            ->orderByDesc('id')->limit(100)->get()->reverse();
-        foreach ($records as $record) {
-            $content = Typer::assertString($record->getAttribute('content'));
-            if ($record->getAttribute('role') === 'user') {
-                $messages[] = new Message('user', $content);
+        $message = $conversation->messages()
+            ->whereNotNull('approval_state')
+            ->orderByDesc('id')
+            ->first();
 
-                continue;
-            }
-            $calls = [];
-            foreach (Typer::assertArray($record->getAttribute('tool_calls')) as $call) {
-                $calls[] = ToolCall::fromArray(Typer::assertArray($call));
-            }
-            $messages[] = new AssistantMessage($content, new Collection($calls));
-            $results = [];
-            foreach (Typer::assertArray($record->getAttribute('tool_results')) as $result) {
-                $results[] = ToolResult::fromArray(Typer::assertArray($result));
-            }
-            if ($results !== []) {
-                $messages[] = new ToolResultMessage(new Collection($results));
-            }
+        if (!$message instanceof ConversationMessage) {
+            return null;
         }
 
-        return $messages;
+        $state = $this->arrayAttribute($message, 'approval_state');
+
+        return ($state['pending'] ?? []) === [] ? null : Typer::assertString($message->getKey());
     }
 
     /**
@@ -141,11 +110,106 @@ class ConversationRepository
     }
 
     /**
-     * Resolve the configured messages table name.
+     * Serialize one stored SDK message as a Vercel UI message.
+     *
+     * @return array{id: string, role: string, parts: list<array<string, mixed>>}
      */
-    public function messagesTable(): string
+    private function messagePayload(ConversationMessage $message): array
     {
-        return Config::inject()->parseNullableString('ai.conversations.tables.messages') ?? 'agent_conversation_messages';
+        $role = Typer::assertString($message->getAttribute('role'));
+        $content = Typer::assertString($message->getAttribute('content'));
+        $parts = [];
+
+        if ($content !== '') {
+            $parts[] = ['type' => 'text', 'text' => $content];
+        }
+
+        if ($role === 'assistant') {
+            $parts = [...$parts, ...$this->toolParts($message)];
+        }
+
+        return [
+            'id' => Typer::assertString($message->getKey()),
+            'role' => $role,
+            'parts' => $parts,
+        ];
+    }
+
+    /**
+     * Serialize stored tool calls, approval state, and results.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function toolParts(ConversationMessage $message): array
+    {
+        $results = [];
+
+        foreach ($this->arrayAttribute($message, 'tool_results') as $result) {
+            if (\is_array($result) && \is_string($result['id'] ?? null)) {
+                $results[$result['id']] = $result;
+            }
+        }
+
+        $approvalState = $this->arrayAttribute($message, 'approval_state');
+        $pending = \is_array($approvalState['pending'] ?? null) ? $approvalState['pending'] : [];
+        $parts = [];
+
+        foreach ($this->arrayAttribute($message, 'tool_calls') as $call) {
+            if (!\is_array($call) || !\is_string($call['id'] ?? null) || !\is_string($call['name'] ?? null)) {
+                continue;
+            }
+
+            $id = $call['id'];
+            $input = \is_array($call['arguments'] ?? null) ? $call['arguments'] : [];
+            $part = [
+                'type' => 'tool-' . $call['name'],
+                'toolCallId' => $id,
+                'input' => $input,
+            ];
+
+            if (\array_key_exists($id, $pending)) {
+                $parts[] = [...$part, 'state' => 'approval-requested', 'approval' => ['id' => $id]];
+
+                continue;
+            }
+
+            $result = $results[$id] ?? null;
+
+            if (!\is_array($result)) {
+                $parts[] = [...$part, 'state' => 'input-available'];
+
+                continue;
+            }
+
+            if (($result['denied'] ?? false) === true) {
+                $parts[] = [...$part, 'state' => 'output-denied', 'approval' => [
+                    'id' => $id,
+                    'approved' => false,
+                    'reason' => \is_string($result['result'] ?? null) ? $result['result'] : null,
+                ]];
+
+                continue;
+            }
+
+            $parts[] = [...$part, 'state' => 'output-available', 'output' => $result['result'] ?? null, 'approval' => [
+                'id' => $id,
+                'approved' => true,
+            ]];
+        }
+
+        return $parts;
+    }
+
+    /**
+     * Read an array-cast message attribute.
+     *
+     * @return array<array-key, mixed>
+     */
+    private function arrayAttribute(ConversationMessage $message, string $key): array
+    {
+        $value = $message->getAttribute($key);
+
+        return \is_array($value) ? $value : [];
     }
 
     /**
@@ -157,18 +221,7 @@ class ConversationRepository
     }
 
     /**
-     * Resolve the user identifier used by the AI SDK conversation store.
-     */
-    private function userId(User $user): int
-    {
-        return Typer::assertInt($user->getKey());
-    }
-
-    /**
-     * Serialize a timestamp attribute to its JSON representation.
-     *
-     * Eloquent casts `updated_at` to a Carbon instance; the sidebar payload
-     * expects the same string form the model's `toArray()` would emit.
+     * Serialize a timestamp attribute to JSON.
      */
     private function serializeTimestamp(mixed $value): string
     {

@@ -4,7 +4,7 @@ export const test = base.extend({
     context: async ({ context }, use) => {
         await context.route('**/*', async (route) => {
             const url = new URL(route.request().url());
-            if (url.origin === 'http://127.0.0.1:18765') {
+            if (url.origin === 'http://127.0.0.1:18767') {
                 await route.continue();
             } else {
                 await route.abort('blockedbyclient');

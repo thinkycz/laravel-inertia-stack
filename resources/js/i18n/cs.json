@@ -105,25 +105,26 @@
         "failed_response": "Nepodařilo se vygenerovat odpověď. Zkuste to prosím znovu."
     },
     "agent": {
-        "cancelled": "Zrušeno",
-        "cancel_run": "Zrušit běh",
-        "cancel_run_confirm": "Zrušit běžícího agenta? Váš postup bude ztracen.",
-        "clarification_hint": "Vyberte možnost, která nejlépe odpovídá vašemu záměru.",
-        "completed": "Dokončeno",
-        "error_generic": "Běh agenta selhal. Zkuste to prosím znovu.",
-        "failed": "Selhalo",
-        "queued": "Ve frontě",
-        "recommended": "Doporučeno",
-        "resume_existing": "Obnovuje se stávající běh…",
-        "running": "Běží…",
-        "tool_running": "Používá se {tool}…",
-        "cancel_failed": "Zrušení se nezdařilo. Zkuste to znovu.",
-        "connection_lost": "Spojení bylo přerušeno. Běh může stále probíhat.",
-        "run_unavailable": "Tento běh již není dostupný.",
-        "reconnecting": "Obnovování spojení…",
-        "retry_connection": "Obnovit spojení",
-        "cancelling": "Rušení…",
-        "clarification_tool": "Upřesnění"
+        "error_generic": "Asistent nemohl dokončit odpověď. Zkuste to znovu.",
+        "stop": "Zastavit odpověď",
+        "approval": {
+            "title": "Schválit testovací oznámení",
+            "description": "Před odesláním na e-mail vašeho účtu oznámení zkontrolujte nebo upravte.",
+            "subject": "Předmět",
+            "message": "Zpráva",
+            "rejection_reason": "Důvod zamítnutí (volitelné)",
+            "rejection_placeholder": "Sdělte asistentovi, co má změnit",
+            "approve": "Schválit a odeslat",
+            "reject": "Zamítnout",
+            "processing": "Rozhodnutí se zpracovává…",
+            "rejected": "Zamítnuto",
+            "prompt_disabled": "Před odesláním další zprávy vyřešte všechna čekající schválení.",
+            "tool_name": "Testovací oznámení",
+            "invalid": "Toto schválení již není nevyřízené. Obnovte konverzaci."
+        },
+        "stopped": "Příjem odpovědi byl na tomto zařízení zastaven. Před pokračováním obnovte uloženou konverzaci.",
+        "refresh_conversation": "Obnovit konverzaci",
+        "conversation_busy": "Jiná odpověď se stále zpracovává. Před pokračováním obnovte konverzaci."
     },
     "locale": {
         "en": "Angličtina",
@@ -132,10 +133,7 @@
     },
     "ai": {
         "errors": {
-            "provider_failed": "Asistent nemohl dokončit odpověď. Zkuste to znovu.",
-            "dispatch_failed": "Odpověď se nepodařilo zařadit ke zpracování. Zkuste to znovu.",
-            "worker_failed": "Zpracování se zastavilo před dokončením odpovědi.",
-            "reconciliation_failed": "Vypršel čas pro odpověď. Zkuste to znovu."
+            "provider_failed": "Asistent nemohl dokončit odpověď. Zkuste to znovu."
         }
     }
 }

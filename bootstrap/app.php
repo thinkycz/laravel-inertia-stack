@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventCookieRequestForgery;
-use App\Jobs\ReconcileAgentRunsJob;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -62,8 +61,6 @@ return Application::configure(basePath: \dirname(__DIR__))
         Illuminate\Contracts\Debug\ExceptionHandler::class => Thinkycz\LaravelCore\Exceptions\Handler::class,
     ])
     ->withSchedule(static function (Schedule $schedule): void {
-        $schedule->job(new ReconcileAgentRunsJob())->everyMinute();
-
         $config = Config::inject();
 
         $timezone = $config->assertString('app.schedule_timezone');

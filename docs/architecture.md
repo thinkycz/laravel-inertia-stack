@@ -36,93 +36,128 @@ Changing an email address clears verification; leaving it unchanged preserves
 verification. Successful email-verification tokens are consumed. Notifications
 are queued after transaction commit.
 
-## AI persistence and lifecycle
+## SDK-owned AI conversations and approvals
 
-Application repositories/services own conversation persistence. `ChatAgent`
-receives explicit conversational context and does not use SDK automatic
-remembering. A start transaction creates one submitted user message, one
-assistant placeholder and one run. Provider context includes at most the latest
-100 completed prior messages; the current prompt is appended once.
+The selected architecture follows Laravel AI's official conversation and tool
+approval flow. `ChatAgent` uses `RemembersConversations`; the SDK is the sole
+message-persistence owner. `User` uses `HasConversations`, and repository queries
+scope ownership through that polymorphic participant relation. Do not add a
+second application message writer beside SDK remembering.
+
+`POST /agent/chat` accepts either a normal `message` or ID-keyed approval
+`decisions`, together with the existing `conversation_id` when continuing. An
+unknown or foreign conversation fails ownership checks. The response streams the
+SDK's Vercel UI-message protocol directly and exposes `x-conversation-id`; the
+browser adopts that canonical ID before the next turn. The frontend uses
+`@ai-sdk/vue` and the AI SDK transport rather than the former run bridge.
 
 ```mermaid
-stateDiagram-v2
-    [*] --> queued
-    queued --> running: atomic claim
-    queued --> failed: dispatch failure or reconciliation
-    queued --> cancelled: cancellation
-    running --> completed: guarded completion
-    running --> failed: provider failure or reconciliation
-    running --> cancelled: cancellation
-    completed --> [*]
-    failed --> [*]
-    cancelled --> [*]
+sequenceDiagram
+    participant Browser
+    participant Chat as AgentChatController
+    participant SDK as Laravel AI
+    participant Store as SDK conversation store
+    Browser->>Chat: POST /agent/chat (message)
+    Chat->>SDK: continue conversation and stream
+    SDK-->>Browser: text/tool UI-message events
+    SDK->>Store: remembered response and pending approval
+    Browser->>Chat: POST /agent/chat (approve/edit/reject decisions)
+    Chat->>SDK: official Decisions
+    SDK->>SDK: resolve authorized tool decision
+    SDK->>Store: tool result and approval state
+    SDK-->>Browser: resumed UI-message stream
 ```
 
-A nullable unique active-conversation key permits one active run per conversation.
-Claim and terminal transitions are guarded; duplicate delivery cannot invoke the
-provider again. Completion and cancellation compete through the same guard, so
-terminal states never change again. Provider calls execute outside database
-transactions. User and conversation context are passed explicitly, without
-mutating a global authentication guard.
+`SendTestNotificationTool` implements `Approvable`. A pending notification exposes
+its subject and message for approval, editing, or rejection. Approval resumes the
+SDK tool call; it is not a new user-message turn. The tool receives its recipient explicitly from the conversation participant and
+queues a notification using `ShouldQueue` and dispatch after commit. It does not
+resolve a mutable global guard while executing.
+Stored tool calls, results and `approval_state` restore approval cards on refresh.
+The custom clarification tool and clarification next-turn workflow are removed.
 
-Message content, run cursor and replay events are persisted together. Text is
-buffered until the next delta after 100 ms, 4 KiB, or termination. Snapshots read
-consistent content and cursor values. Replay batches are bounded. Tool results,
-usage metadata and partial failed/cancelled responses survive refresh. Errors
-exposed to clients are safe translated codes/messages; diagnostics stay in
-server reporting.
+SDK remembering limits provider history to its latest 100 stored messages and
+uses ordered identifiers. Repository UI history independently selects the latest
+100 rows, and the sidebar selects at most 50 conversations. Older history is
+not currently exposed through a pagination UI. SDK
+approval result recording does not by itself prove exactly-once external side
+effects under concurrent requests or process crashes; integration tests must
+exercise those boundaries explicitly.
 
-User, conversation, message, run and event relationships cascade on deletion.
-Workers guard writes against deletion and terminal transitions. An unknown or
-foreign conversation ID fails rather than creating a replacement conversation.
+## Direct streaming and persistence limits
 
-## Queue and recovery
+The former durable runs, run events, assistant placeholders, active-run key,
+replay cursors, queued provider jobs and reconciliation job are removed. There is
+no queued/running/terminal server state machine, durable reconnect replay, or
+cancellation endpoint. Browser Stop aborts transport; it is not an acknowledged
+server cancellation transaction. Refresh restores SDK-persisted messages and
+pending approvals, not an in-flight run snapshot.
 
-Local asynchronous execution uses the database queue; deployed environments use
-Redis. PHP unit/feature tests normally use a synchronous fake queue, while browser
-lifecycle tests run a real worker against an isolated database queue with fake
-providers. Provider timeout is 90 seconds, worker timeout 120 seconds and retry
-visibility 180 seconds. Provider execution has one automatic attempt; a user
-retry creates a new run.
+SDK remembering writes at its response boundary. Do not claim that partial
+failed/aborted output is durable or that a user/assistant pair is committed
+atomically without a regression test demonstrating that behavior. There are no
+application per-delta content updates or replay-event writes. The SDK retains
+stream events in memory until the response finishes; this remains distinct from
+the removed application event buffer. Query-count results
+from the deleted buffered-run implementation do not certify this implementation.
 
-The scheduler dispatches a reconciliation job for queued runs older than five
-minutes and running runs older than 150 seconds. It uses guarded failure
-transitions. A worker alone does not replace the scheduler: both must run for
-recovery after process termination.
+Application guards must protect ownership, concurrent approval submission,
+conversation deletion and account deletion around the SDK flow. Polymorphic
+participants cannot rely on a direct `users` foreign key alone. Conversation
+message foreign keys and explicit account cleanup have different responsibilities.
+Do not infer participant cleanup from the `HasConversations` relation declaration.
 
-## Browser state
+The controller serializes conversation requests with a 180-second cache lease and
+validates decisions against the current pending IDs while holding it. Normal
+messages cannot bypass a pending approval. `SafeChatResponse` leaves SDK
+remembering intact while sanitizing provider and failed-tool events, checking
+elapsed time/disconnection at event boundaries, and checking conversation
+existence periodically. Provider calls have a 90-second timeout; the wrapper also
+checks a 90-second elapsed deadline when events arrive. A blocked provider call
+cannot be interrupted merely by that event-boundary check.
 
-The shared `active_run` snapshot identifies its conversation and assistant
-message and carries server status, content, cursor and safe error information.
-The returned conversation ID becomes canonical immediately. Navigation follows
-that ID; obsolete stream subscriptions are aborted and ignored. Streaming
-snapshots update the existing assistant placeholder.
+Unexpected setup errors return a safe 502 response; stream exceptions produce a
+safe error event and release the lease. The callback temporarily ignores automatic
+PHP user-abort termination so its disconnect check and `finally` cleanup can run,
+then restores the previous setting. This cleanup is not durable cancellation.
+Null approval reasons are omitted from
+the wire payload because AI SDK 7 accepts absence but rejects a null reason.
+These adaptations do not close the process-crash gap between an approved tool's
+external side effect and the SDK approval-result checkpoint. Do not claim
+exactly-once notification delivery across that gap.
 
-Connection state is separate from server run status. Reconnection exhaustion
-allows retry, and cancellation remains pending until acknowledged. Clarification
-payloads are persisted and rendered with `ClarificationCard`; a selection starts
-a normal next turn in the same conversation and is recorded to prevent duplicate
-selection after refresh. Typed answers remain valid next turns.
+## Runtime services and browser behavior
 
-Dialogs provide naming, focus trapping/restoration, Escape dismissal and blocked
-background interaction. Enter sends a prompt; Shift+Enter inserts a newline;
-IME composition does not submit. User-facing states stay synchronized in en/cs/sk.
+Provider execution happens in the HTTP streaming request. Queue workers remain
+necessary for approved notification delivery and other queued application mail;
+they do not run or recover chat generations. Local jobs use the database queue,
+and deployed jobs use Redis. Worker/visibility timeout configuration is distinct
+from HTTP/provider request timeout and reverse-proxy buffering limits.
+
+The browser keeps its canonical conversation ID and SDK message parts synchronized
+with navigation and persisted history. Connection failure, pending approval,
+rejection and transport cancellation have different UI states. Pending approvals
+must not be silently reissued after refresh. Dialogs require names, focus
+trapping/restoration, Escape dismissal and blocked background interaction. Enter
+sends, Shift+Enter inserts a newline, and IME composition does not submit.
+User-facing strings stay synchronized in en/cs/sk.
 
 ## Verification boundary
 
-Pest selects its isolated configuration before application bootstrap and does not
-clear developer caches. Playwright owns a temporary SQLite database, file-backed
-sessions and fixed test server; it cannot reuse the developer's server. AI/mail
-providers are fake and external requests are blocked. Cleanup removes only
-artifacts owned by that test run.
+Pest selects isolated configuration before bootstrap and does not clear developer
+caches. Playwright owns its temporary SQLite database, file sessions and fixed
+server; it never reuses the developer's server. Tests use fake providers and mail
+and block external requests. Cleanup removes only test-owned artifacts.
 
-Generator contracts create a disposable complete CRUD slice, analyze generated
-code with the project's strict PHPStan configuration, and exercise ownership and
-pagination. Architecture scans are recursive; they complement behavioral tests
-and do not establish universal ownership or concurrency correctness.
+Tests must exercise the official approval loop with fake transport where tool
+execution matters: `ChatAgent::fake()` bypasses parts of the real approval
+resumption path. Cover approve, edit, reject, stale/foreign IDs, refresh, concurrent
+submissions, deletion, safe errors and transport abort without a paid provider.
+The removed run/clarification suites are not evidence for this architecture.
 
-`make check` covers static analysis, formatting, audits, build, Vitest and Pest.
-`make e2e` runs the isolated browser suite separately. MySQL uniqueness, foreign
-keys and concurrent transitions, Redis recovery and deployment sequencing need
-specific disposable-environment verification. Passing local tests is not
-production certification or evidence of live provider behavior.
+Generator contracts still create disposable CRUD code, analyze it with strict
+PHPStan, and exercise ownership/pagination. Architecture scans are recursive and
+complement behavioral tests. `make check` and `make e2e` are separate checks;
+disposable MySQL/Redis and deployment verification must target current contracts.
+Final results belong in the integration handoff. Live provider behavior and a
+real deployment remain unverified; this is not production certification.

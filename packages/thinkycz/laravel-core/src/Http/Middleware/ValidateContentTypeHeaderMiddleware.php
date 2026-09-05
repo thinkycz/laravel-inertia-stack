@@ -22,7 +22,7 @@ class ValidateContentTypeHeaderMiddleware
             return $next($request);
         }
 
-        if (\in_array($request->getContent(), [null, false, ''], true)) {
+        if ($request->getContent() === '') {
             return $next($request);
         }
 

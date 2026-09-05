@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Ai\ConversationRepository;
 use App\Http\Resources\UserResource;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Resources\JsonApi\JsonApiResource;
 use Illuminate\Support\Carbon;
-use Laravel\Ai\Models\Conversation;
+use Illuminate\Support\Facades\DB;
+use Laravel\Ai\Concerns\HasConversations;
 use Thinkycz\LaravelCore\Models\BaseUser;
 use Thinkycz\LaravelCore\Notifications\PasswordResetNotification;
 use Thinkycz\LaravelCore\Support\Resolver;
@@ -17,6 +18,8 @@ use Thinkycz\LaravelCore\Support\Typer;
 
 class User extends BaseUser implements MustVerifyEmail
 {
+    use HasConversations;
+
     /**
      * Explicit mass-assignment allowlist.
      *
@@ -32,14 +35,17 @@ class User extends BaseUser implements MustVerifyEmail
     protected $fillable = ['email', 'password', 'locale'];
 
     /**
-     * Get the user's AI conversations.
-     *
-     * @return HasMany<Conversation, $this>
+     * Delete owned polymorphic conversations along with their participant.
      */
-    public function conversations(): HasMany
+    public function delete(): bool
     {
-        return $this->hasMany(Conversation::class, 'user_id')
-            ->orderBy('updated_at', 'desc');
+        return DB::transaction(function (): bool {
+            $this->conversations()->eachById(function ($conversation): void {
+                Resolver::resolve(ConversationRepository::class)->delete($conversation);
+            }, 100);
+
+            return parent::delete();
+        });
     }
 
     /**

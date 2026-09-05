@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Vite;
 use Laravel\Ai\Ai;
+use Laravel\Ai\Responses\Data\ToolCall;
 use Tests\E2e\Support\BrowserTextGateway;
+use Thinkycz\LaravelCore\Support\Resolver;
 
 require \dirname(__DIR__, 3) . '/vendor/autoload.php';
 require __DIR__ . '/BrowserTextGateway.php';
@@ -30,12 +32,15 @@ $app->booted(static function () use ($directory): void {
     Http::preventStrayRequests();
     Mail::fake();
     Notification::fake();
-    Ai::textProvider()->useTextGateway((new BrowserTextGateway(static function (string $prompt): string {
+    Ai::textProvider()->useTextGateway((new BrowserTextGateway(static function (string $prompt): string|ToolCall {
         if ($prompt === '[e2e:failure]') {
             throw new RuntimeException('Synthetic provider failure; must never reach the browser.');
         }
-        if (\str_starts_with($prompt, '[e2e:slow]')) {
-            \usleep(4_000_000);
+        if ($prompt === '[e2e:approval]' && !Resolver::resolveRequest()->has('decisions')) {
+            return new ToolCall('test-notification-call', 'SendTestNotificationTool', ['subject' => 'Original subject', 'message' => 'Original message']);
+        }
+        if (Resolver::resolveRequest()->has('decisions')) {
+            return 'Test assistant resumed after decision.';
         }
 
         return 'Test assistant response: ' . $prompt;

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Web;
 
-use App\Ai\AgentRunService;
 use App\Ai\ConversationRepository;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -22,18 +21,14 @@ class ConversationController
     {
         $user = User::mustAuth();
         $conversations = Resolver::resolve(ConversationRepository::class);
-
         $conversation = $conversations->findOwned($id, $user);
 
         if ($conversation === null) {
             return Resolver::resolveRedirector()->to('/dashboard');
         }
 
-        $conversationId = $conversations->conversationId($conversation);
-
         return Inertia::render('Dashboard', [
             'conversation' => $conversations->dashboardPayload($conversation),
-            'active_run' => Resolver::resolve(AgentRunService::class)->serializeActiveRun($conversationId, $user),
         ]);
     }
 
@@ -44,7 +39,6 @@ class ConversationController
     {
         $user = User::mustAuth();
         $conversations = Resolver::resolve(ConversationRepository::class);
-
         $conversation = $conversations->findOwned($id, $user);
 
         if ($conversation === null) {

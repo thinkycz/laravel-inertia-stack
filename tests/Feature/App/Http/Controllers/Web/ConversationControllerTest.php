@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\App\Http\Controllers\Web;
 
+use App\Ai\Agents\ChatAgent;
 use App\Models\User;
 use Database\Factories\UserFactory;
 use Illuminate\Support\Facades\Config;
@@ -13,16 +14,20 @@ use Illuminate\Support\Str;
 use Laravel\Ai\Models\Conversation;
 use Thinkycz\LaravelCore\Support\Typer;
 
+\beforeEach(function (): void {
+    $this->withSession(['_token' => 'conversation-test-token'])
+        ->withHeader('X-CSRF-TOKEN', 'conversation-test-token');
+});
+
 \test('guest is redirected to login from conversation show endpoint', function (): void {
     $response = $this->get('/conversations/some-uuid');
     $response->assertRedirect('/login');
 });
 
-\test('user can view conversation details and active_run is null when no run is in flight', function (): void {
+\test('user can view conversation details', function (): void {
     $user = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
-    $conversation = Conversation::create([
+    $conversation = $user->conversations()->create([
         'id' => Str::uuid()->toString(),
-        'user_id' => $user->getKey(),
         'title' => 'Test Conversation',
     ]);
 
@@ -33,15 +38,48 @@ use Thinkycz\LaravelCore\Support\Typer;
     $response->assertJsonPath('component', 'Dashboard');
     $response->assertJsonPath('props.conversation.id', $conversation->getKey());
     $response->assertJsonPath('props.conversation.title', 'Test Conversation');
-    $response->assertJsonPath('props.active_run', null);
+});
+
+\test('conversation details hydrate persisted approval tool parts', function (): void {
+    $user = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
+    $conversation = $user->conversations()->create([
+        'id' => Str::uuid()->toString(),
+        'title' => 'Pending Approval',
+    ]);
+
+    $conversation->messages()->create([
+        'id' => Str::uuid()->toString(),
+        'participant_type' => $user->getMorphClass(),
+        'participant_id' => $user->getKey(),
+        'agent' => ChatAgent::class,
+        'role' => 'assistant',
+        'content' => '',
+        'attachments' => [],
+        'tool_calls' => [[
+            'id' => 'notification-call',
+            'name' => 'SendTestNotificationTool',
+            'arguments' => ['subject' => 'Subject', 'message' => 'Message'],
+        ]],
+        'tool_results' => [],
+        'usage' => [],
+        'meta' => [],
+        'approval_state' => ['pending' => ['notification-call' => null]],
+    ]);
+
+    $response = $this->be($user, 'users')
+        ->get('/conversations/' . $conversation->getKey(), $this->inertiaHeaders());
+
+    $response->assertOk();
+    $response->assertJsonPath('props.conversation.messages.0.parts.0.type', 'tool-SendTestNotificationTool');
+    $response->assertJsonPath('props.conversation.messages.0.parts.0.state', 'approval-requested');
+    $response->assertJsonPath('props.conversation.messages.0.parts.0.input.subject', 'Subject');
 });
 
 \test('user cannot access another users conversation', function (): void {
     $owner = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
     $otherUser = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
-    $conversation = Conversation::create([
+    $conversation = $owner->conversations()->create([
         'id' => Str::uuid()->toString(),
-        'user_id' => $owner->getKey(),
         'title' => 'Private Conversation',
     ]);
 
@@ -58,9 +96,8 @@ use Thinkycz\LaravelCore\Support\Typer;
 
 \test('user is redirected to dashboard when deleting the active conversation', function (): void {
     $user = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
-    $conversation = Conversation::create([
+    $conversation = $user->conversations()->create([
         'id' => Str::uuid()->toString(),
-        'user_id' => $user->getKey(),
         'title' => 'Test Conversation',
     ]);
 
@@ -74,9 +111,8 @@ use Thinkycz\LaravelCore\Support\Typer;
 
 \test('user is redirected back when deleting a non-active conversation', function (): void {
     $user = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
-    $conversation = Conversation::create([
+    $conversation = $user->conversations()->create([
         'id' => Str::uuid()->toString(),
-        'user_id' => $user->getKey(),
         'title' => 'Test Conversation',
     ]);
 
@@ -94,7 +130,8 @@ use Thinkycz\LaravelCore\Support\Typer;
 
     Schema::create('custom_agent_conversations', function ($table): void {
         $table->string('id', 36)->primary();
-        $table->foreignId('user_id')->nullable();
+        $table->string('participant_type')->nullable();
+        $table->unsignedBigInteger('participant_id')->nullable();
         $table->string('title');
         $table->timestamps();
     });
@@ -102,7 +139,8 @@ use Thinkycz\LaravelCore\Support\Typer;
     Schema::create('custom_agent_messages', function ($table): void {
         $table->string('id', 36)->primary();
         $table->string('conversation_id', 36)->index();
-        $table->foreignId('user_id')->nullable();
+        $table->string('participant_type')->nullable();
+        $table->unsignedBigInteger('participant_id')->nullable();
         $table->string('agent');
         $table->string('role', 25);
         $table->text('content');
@@ -111,20 +149,21 @@ use Thinkycz\LaravelCore\Support\Typer;
         $table->text('tool_results');
         $table->text('usage');
         $table->text('meta');
+        $table->text('approval_state')->nullable();
         $table->timestamps();
     });
 
     $user = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
-    $conversation = Conversation::create([
+    $conversation = $user->conversations()->create([
         'id' => Str::uuid()->toString(),
-        'user_id' => $user->getKey(),
         'title' => 'Custom Tables',
     ]);
 
     DB::table('custom_agent_messages')->insert([
         'id' => Str::uuid()->toString(),
         'conversation_id' => $conversation->getKey(),
-        'user_id' => $user->getKey(),
+        'participant_type' => $user->getMorphClass(),
+        'participant_id' => $user->getKey(),
         'agent' => 'agent',
         'role' => 'user',
         'content' => 'hello',
@@ -133,6 +172,7 @@ use Thinkycz\LaravelCore\Support\Typer;
         'tool_results' => '[]',
         'usage' => '[]',
         'meta' => '[]',
+        'approval_state' => null,
         'created_at' => \now(),
         'updated_at' => \now(),
     ]);

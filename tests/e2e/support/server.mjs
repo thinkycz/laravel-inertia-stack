@@ -12,7 +12,7 @@ const env = {
     E2E_DIRECTORY: directory,
     APP_ENV: 'testing',
     APP_NAME: 'Browser tests',
-    APP_URL: 'http://127.0.0.1:18765',
+    APP_URL: 'http://127.0.0.1:18767',
     APP_KEY: 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
     APP_DEBUG: 'true',
     APP_CONFIG_CACHE: join(directory, 'config.php'),
@@ -118,7 +118,7 @@ for (const args of [
         '--tries=1',
         '--timeout=120',
     ],
-    ['-S', '127.0.0.1:18765', '-t', 'public', 'tests/e2e/support/router.php'],
+    ['-S', '127.0.0.1:18767', '-t', 'public', 'tests/e2e/support/router.php'],
 ]) {
     run(args).once('exit', (code) => {
         if (!stopping) void stop(code || 1);

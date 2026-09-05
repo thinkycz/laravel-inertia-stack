@@ -225,26 +225,32 @@ are invisible at runtime. Prettier aligns the frontend. Audits
 flag supply-chain issues. Without the loop, the next `make check`
 on CI fails on a fixable lint issue.
 
-## Conversation lifecycle audit lessons
+## SDK conversation and approval lessons
 
-The SDK's remembering middleware and application writes both persisted messages,
-so a single turn duplicated the prompt and response. Assign one persistence owner
-and test the resulting row count and provider context together.
+A single persistence owner still matters. The earlier audit found duplication
+because application writes and SDK remembering ran together. The selected
+remote-main architecture keeps official `RemembersConversations` and removes the
+application message writer. Do not restore both while adapting audit fixes.
 
-A pre-insert active-run lookup is insufficient under concurrency. Enforce the
-invariant in the database and claim work atomically. Queue redelivery must not
-re-enter a running or terminal run. Guard cancellation, completion and deletion
-through the same persistence boundary and test competing transitions.
+Official approvals are not clarification questions. Approve/edit/reject resumes
+a pending SDK tool call. Persisted tool parts and approval state must survive
+refresh; a normal next message and a decision request have different contracts.
+The SDK fake gateway bypasses parts of approval execution, so use fake transport
+through the actual approval loop when testing side effects and resumption.
 
-Streaming every tiny delta separately caused hundreds of SQL statements. Buffer
-writes and measure with a deterministic 200-delta fake response. A lower query
-count is evidence for that workload, not a universal throughput guarantee.
+Polymorphic ownership belongs to `HasConversations` and participant-aware lookup.
+The relation does not automatically delete conversations when a user disappears.
+Account deletion and conversation-message cleanup need explicit verification.
 
-Connection loss is not completion. Keep the server lifecycle separate from
-transport retry state, and reconcile snapshots into their persisted assistant
-message. Use the server's returned conversation ID before accepting a second
-prompt. Clarification choices are persisted next-turn input, not a continuation
-of a finished provider stream.
+The previous durable-run implementation's atomic transitions, replay cursors,
+partial-content persistence and query-count results are historical evidence only.
+Direct HTTP streaming has no durable cancellation acknowledgement or recovery
+worker. Browser abort does not establish that the provider stopped or that partial
+history was saved. Document these boundaries and test safe failure behavior.
+
+SDK deduplication of stored tool results does not establish exactly-once email
+execution under simultaneous approval requests or process failure. Keep request
+serialization and side-effect regression tests at the application boundary.
 
 Generator templates require execution tests too. The disposable CRUD contract
 found ownership leaks, invalid pagination defaults, incompatible SQLite fulltext

@@ -28,9 +28,11 @@ own temporary database, file sessions and fixed server with fake AI/mail
 providers. Neither suite may reset the current database. `make check` and
 `make e2e` are separate checks.
 
-Local chat uses the database queue; keep the worker started by `composer run dev`
-running. Deployed environments require both a Redis worker and Laravel scheduler.
-See [architecture](docs/architecture.md) for timeout and recovery contracts.
+Chat streams directly from `POST /agent/chat` through Laravel AI's official
+Vercel protocol to `@ai-sdk/vue`. The SDK remembers conversations and pauses
+approvable notification tools until the user approves, edits or rejects them.
+Queue workers deliver approved notifications; they do not execute chat streams.
+See [architecture](docs/architecture.md) for persistence and interruption limits.
 
 Commit both lockfiles. Deployment builds frontend assets before pruning build
 dependencies and requires `public/build/manifest.json`. Test deployment commands

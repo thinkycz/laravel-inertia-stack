@@ -310,20 +310,26 @@ $user)`) or Eloquent relationship methods that take the user as
 - Keep failed-login budgets separate from operation quotas. Count validated
   successful AI starts (30/minute/user). Limit reset/verification delivery to
   one message/minute/address and a separate IP abuse budget.
-- Application code owns conversation persistence. Do not add SDK remembering
-  beside repository writes. Link run messages, bound prior completed context to
-  100 messages, and append the new prompt once.
-- Guard queued-to-running and terminal transitions atomically. One nullable
-  unique active-conversation key prevents concurrent active runs. Duplicate
-  delivery does not execute providers again; provider calls stay outside DB
-  transactions. Deletion must prevent subsequent worker writes.
-- Use database queues locally and Redis in deployed environments. Keep provider,
-  worker and visibility timeouts at 90/120/180 seconds, respectively, with one
-  provider attempt and scheduled stale-run reconciliation.
-- Keep run content, cursor and events transactionally consistent. Buffer text
-  writes and bound replay/context rather than introducing unbounded collections.
-- Clarifications terminate the current run; selection or typing starts a new
-  turn. Persist selection and keep server status distinct from connection state.
+- The selected AI architecture uses official SDK `RemembersConversations` as
+  the sole message-persistence owner. `User` keeps `HasConversations`, and
+  ownership is scoped through its polymorphic participant relation.
+- Stream `POST /agent/chat` using the official Vercel protocol and `@ai-sdk/vue`.
+  Adopt `x-conversation-id` as canonical. Do not restore custom run/event tables,
+  assistant placeholders, queued provider jobs or replay cursors.
+- Approvable notification tools pause for official approve/edit/reject decisions.
+  Resumption continues the pending tool call; it is not a clarification next
+  turn. Preserve SDK approval state and validate decision IDs/arguments.
+- Keep ownership checks, concurrent-request protection, safe errors and deletion
+  cleanup around the SDK boundary. Approval-state persistence is not proof of
+  exactly-once external effects. Test the real approval loop with fake transport.
+- Preserve the 180-second request lease and `SafeChatResponse` sanitization,
+  event-boundary deadline/disconnection/deletion checks, and null-reason protocol
+  adaptation. Bind tools to the explicit conversation participant.
+- Queue workers deliver notifications, not chat streams. Treat browser abort as
+  a transport operation, not an acknowledged server terminal-state transition.
+  Do not promise partial-response persistence or durable reconnect recovery.
+- Keep provider context and UI history bounds distinct. Measure SDK streaming
+  writes afresh; the old run/event SQL benchmark is no longer applicable.
 - Generated CRUD lookups scope ownership before fetching. Pagination defaults to
   25 with a maximum of 100. Validate generated source and behavior in a disposable
   application; never generate test fixtures into the working application's code.
