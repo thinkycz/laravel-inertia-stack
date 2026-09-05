@@ -60,11 +60,13 @@ class ResetPasswordController
 
         $broker = Resolver::resolvePasswordBroker('users');
 
-        if (!$broker->tokenExists($user, $validated->assertString('token'))) {
-            Thrower::default()->message('token', Typer::assertString(\__(PasswordBroker::INVALID_TOKEN)))->throw();
-        }
-
         DB::transaction(function () use ($user, $validated, $broker): void {
+            $user = Typer::assertInstance($user->newQuery()->whereKey($user->getKey())->lockForUpdate()->firstOrFail(), BaseUser::class);
+
+            if ($user->getEmailForPasswordReset() !== $validated->assertString('email') || !$broker->tokenExists($user, $validated->assertString('token'))) {
+                Thrower::default()->message('token', Typer::assertString(\__(PasswordBroker::INVALID_TOKEN)))->throw();
+            }
+
             $user->update([
                 'password' => $validated->assertString('password'),
             ]);

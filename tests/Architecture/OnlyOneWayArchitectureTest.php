@@ -2,22 +2,7 @@
 
 declare(strict_types=1);
 
-/**
- * Recursively iterate every .php file under a directory.
- *
- * @return iterable<string>
- */
-function arch_php_files(string $dir): iterable
-{
-    $rii = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
-
-    foreach ($rii as $file) {
-        /** @var SplFileInfo $file */
-        if ($file->isFile() && $file->getExtension() === 'php') {
-            yield $file->getPathname();
-        }
-    }
-}
+require_once __DIR__ . '/Helpers.php';
 
 $forbiddenFunctions = [
     'env(',
@@ -48,7 +33,7 @@ $forbiddenFunctions = [
 });
 
 \arch('config files never call env directly', function (): void {
-    foreach (\glob(\base_path('config/*.php')) ?: [] as $file) {
+    foreach (\arch_php_files(\base_path('config')) ?: [] as $file) {
         $contents = (string) \file_get_contents($file);
 
         \expect($contents)
@@ -178,5 +163,39 @@ $forbiddenFunctions = [
             \expect($contents)
                 ->not->toContain($call);
         }
+    }
+});
+
+\arch('app and route class references use imports instead of inline qualified names', function (): void {
+    foreach ([...\arch_php_files(\base_path('app')), ...\arch_php_files(\base_path('routes'))] as $file) {
+        $depth = 0;
+        $importOrNamespace = false;
+        foreach (\token_get_all((string) \file_get_contents($file)) as $token) {
+            if (\is_string($token)) {
+                if ($token === '{') {
+                    ++$depth;
+                } elseif ($token === '}') {
+                    --$depth;
+                } elseif ($token === ';') {
+                    $importOrNamespace = false;
+                }
+
+                continue;
+            }
+            if ($depth === 0 && \in_array($token[0], [\T_NAMESPACE, \T_USE], true)) {
+                $importOrNamespace = true;
+            }
+            if (!$importOrNamespace && \in_array($token[0], [\T_NAME_QUALIFIED, \T_NAME_FULLY_QUALIFIED], true) && !\defined(\ltrim($token[1], '\\'))) {
+                $segments = \explode('\\', \ltrim($token[1], '\\'));
+                $last = $segments[\count($segments) - 1];
+                \expect(\preg_match('/^[A-Z]/', $last))->toBe(0, $file . ':' . $token[2] . ' should import ' . $token[1]);
+            }
+        }
+    }
+});
+
+\arch('first party code does not suppress PHPStan findings', function (): void {
+    foreach ([...\arch_php_files(\base_path('app')), ...\arch_php_files(\base_path('packages/thinkycz/laravel-core/src'))] as $file) {
+        \expect((string) \file_get_contents($file))->not->toMatch('/@phpstan-ignore(?:-next-line|-line)?\\b/');
     }
 });

@@ -9,20 +9,33 @@ use Database\Factories\{{ model }}Factory;
 use Database\Factories\UserFactory;
 use Thinkycz\LaravelCore\Support\Resolver;
 
-test('show {{ table }}', function (): void {
+\test('show {{ table }}', function (): void {
     $auth = UserFactory::new()->createOne();
-    expect($auth)->toBeInstanceOf(User::class);
+    \expect($auth)->toBeInstanceOf(User::class);
 
     $model = {{ model }}Factory::new()
         ->for($auth)
         ->createOne();
-    expect($model)->toBeInstanceOf({{ model }}::class);
+    \expect($model)->toBeInstanceOf({{ model }}::class);
 
     $query = [
         'id' => $model->getKey(),
     ];
 
-    $response = $this->be($auth)->get(Resolver::resolveUrlGenerator()->action({{ model }}ShowController::class, $query));
+    $response = $this->be($auth)->getJson(Resolver::resolveUrlGenerator()->action({{ model }}ShowController::class, $query));
 
     $response->assertOk();
+});
+
+\test('guest cannot show {{ table }}', function (): void {
+    $this->getJson(Resolver::resolveUrlGenerator()->action({{ model }}ShowController::class))->assertUnauthorized();
+});
+
+\test('cannot show another user\'s {{ table }}', function (): void {
+    $owner = UserFactory::new()->createOne();
+    $other = UserFactory::new()->createOne();
+    $model = {{ model }}Factory::new()->for($owner)->createOne();
+
+    $this->be($other)->getJson(Resolver::resolveUrlGenerator()->action({{ model }}ShowController::class, ['id' => $model->getKey()]))->assertNotFound();
+    $this->assertDatabaseHas('{{ table }}', ['id' => $model->getKey(), 'title' => $model->getTitle()]);
 });

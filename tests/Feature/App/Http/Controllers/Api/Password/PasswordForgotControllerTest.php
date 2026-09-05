@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\Password\PasswordForgotController;
 use Database\Factories\UserFactory;
 use Illuminate\Support\Facades\Notification;
-use Thinkycz\LaravelCore\Notifications\PasswordNewPasswordSettedNotification;
+use Thinkycz\LaravelCore\Models\DatabaseToken;
 use Thinkycz\LaravelCore\Notifications\PasswordResetNotification;
 use Thinkycz\LaravelCore\Support\Config;
 use Thinkycz\LaravelCore\Support\Resolver;
@@ -27,7 +27,6 @@ use Thinkycz\LaravelCore\Support\Resolver;
     Notification::fake();
 
     Config::inject()->assign('auth.defaults.passwords', 'users');
-    Config::inject()->assign('auth.passwords.users.send_raw_password', false);
 
     $user = UserFactory::new()->createOne([
         'email' => 'forgot@example.com',
@@ -43,16 +42,18 @@ use Thinkycz\LaravelCore\Support\Resolver;
     Notification::assertSentTo($user, PasswordResetNotification::class);
 });
 
-\test('user can request password reset link send raw password flow', function (): void {
+\test('reset link requests preserve credentials and sessions', function (): void {
     Notification::fake();
 
     Config::inject()->assign('auth.defaults.passwords', 'users');
-    Config::inject()->assign('auth.passwords.users.send_raw_password', true);
 
     $user = UserFactory::new()->createOne([
         'email' => 'forgot@example.com',
     ]);
     \expect($user)->toBeInstanceOf(App\Models\User::class);
+
+    $originalHash = $user->getAuthPassword();
+    DatabaseToken::inject()->login($user->getTable(), $user);
 
     $response = $this->postJson(Resolver::resolveUrlGenerator()->action(PasswordForgotController::class), [
         'email' => $user->getEmail(),
@@ -60,7 +61,9 @@ use Thinkycz\LaravelCore\Support\Resolver;
 
     $response->assertNoContent();
 
-    Notification::assertSentTo($user, PasswordNewPasswordSettedNotification::class);
+    Notification::assertSentTo($user, PasswordResetNotification::class);
+    \expect($user->refresh()->getAuthPassword())->toBe($originalHash);
+    $this->assertDatabaseCount('database_tokens', 1);
 });
 
 \test('password reset link request fails with invalid email', function (): void {
@@ -77,4 +80,12 @@ use Thinkycz\LaravelCore\Support\Resolver;
 
     $response->assertUnprocessable();
     $response->assertJsonValidationErrors('email');
+});
+
+\test('reset delivery quota is shared between api and web requests', function (): void {
+    Notification::fake();
+    $user = UserFactory::new()->createOne();
+    $this->postJson('/api/v1/password/forgot', ['email' => $user->getEmail()])->assertNoContent();
+    $this->postJson('/forgot-password', ['email' => $user->getEmail()])->assertStatus(429);
+    Notification::assertSentToTimes($user, PasswordResetNotification::class, 1);
 });

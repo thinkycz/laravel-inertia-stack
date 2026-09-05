@@ -91,15 +91,9 @@ class Handler extends IlluminateHandler
     /**
      * @inheritDoc
      */
-    protected function invalid(mixed $request, ValidationException $exception): RedirectResponse|Response
+    protected function invalid(mixed $request, ValidationException $exception): JsonResponse|RedirectResponse|Response
     {
-        $httpException = $this->httpException($exception->status, $exception);
-
-        if ($this->debug()) {
-            return $this->symfony($request, $exception, $httpException);
-        }
-
-        return $this->thinkycz($request, $exception, $httpException);
+        return parent::invalid($request, $exception);
     }
 
     /**

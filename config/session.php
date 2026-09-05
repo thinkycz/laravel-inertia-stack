@@ -152,7 +152,7 @@ return [
     |
     */
 
-    'path' => $env->parseNullableString('SESSION_PATH') ?? '/',
+    'path' => '/',
 
     /*
     |--------------------------------------------------------------------------
@@ -165,7 +165,7 @@ return [
     |
     */
 
-    'domain' => $env->parseNullableString('SESSION_DOMAIN'),
+    'domain' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -178,7 +178,7 @@ return [
     |
     */
 
-    'secure' => $env->parseNullableBool('SESSION_SECURE_COOKIE') ?? false,
+    'secure' => !$env->appEnvIs(['local', 'testing']),
 
     /*
     |--------------------------------------------------------------------------

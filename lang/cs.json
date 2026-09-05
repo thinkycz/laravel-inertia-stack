@@ -22,7 +22,6 @@
     "We can't find a user with that email address.": "Uživatele s touto e-mailovou adresou nelze najít.",
     "Profile updated.": "Profil byl aktualizován.",
     "Password updated.": "Heslo bylo aktualizováno.",
-    "A new password has been sent to your email address.": "Na vaši e-mailovou adresu bylo odesláno nové heslo.",
     "A password reset link has been sent to your email address.": "Na vaši e-mailovou adresu byl odeslán odkaz pro obnovení hesla.",
     "Verification email sent.": "Ověřovací e-mail byl odeslán."
 }

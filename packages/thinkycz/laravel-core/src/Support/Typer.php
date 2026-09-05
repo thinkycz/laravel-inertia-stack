@@ -1184,16 +1184,13 @@ class Typer
     /**
      * Assert empty.
      *
-     * @template T of array<mixed>
+     * @param array<mixed> $value
      *
-     * @param T $value
-     *
-     * @return T
+     * @return array{}
      */
     public static function assertEmpty(array $value): array
     {
         if (\count($value) === 0) {
-            // @phpstan-ignore-next-line
             return $value;
         }
 

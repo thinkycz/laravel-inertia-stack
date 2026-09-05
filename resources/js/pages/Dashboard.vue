@@ -11,256 +11,241 @@ import { useI18n } from 'vue-i18n';
 import { Send, Sparkles, Bot, User } from '@lucide/vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useBoundLocale } from '@/composables/useBoundLocale';
-import { useActiveConversation } from '@/composables/useActiveConversation';
 import { useAgentRunBridge } from '@/composables/useAgentRunBridge';
 import RunStatusBadge from '@/components/agent/RunStatusBadge.vue';
-
-interface LocalMessage extends ChatMessage {
-    id: string;
-}
+import ClarificationCard from '@/components/agent/ClarificationCard.vue';
 
 const props = defineProps<{
     conversation?: ChatConversation;
-    activeRun?: AgentRunSnapshot | null;
+    active_run?: AgentRunSnapshot | null;
 }>();
-
 const { t } = useI18n();
 useBoundLocale();
-const { pendingConversationId } = useActiveConversation();
 const page = usePage<SharedProps>();
-
 const inputMessage = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 const chatTextarea = ref<HTMLTextAreaElement | null>(null);
-
-const localMessages = ref<LocalMessage[]>([]);
-const localProcessing = ref(false);
+const localMessages = ref<ChatMessage[]>([]);
+const canonicalId = ref<string | null>(props.conversation?.id ?? null);
+const submitting = ref(false);
+const pendingRefreshes = ref(0);
 const currentTool = ref<string | null>(null);
-// Tracks the index of the assistant message currently being streamed,
-// so the loading indicator only shows for that specific bubble.
-const streamingMsgIndex = ref(-1);
-
-let messageIdCounter = 0;
-function generateMessageId(): string {
-    return `msg-${++messageIdCounter}`;
-}
-
-let isScrollScheduled = false;
-
-function scrollToBottom(): void {
-    if (isScrollScheduled) {
-        return;
-    }
-
-    isScrollScheduled = true;
-    nextTick(() => {
-        if (messagesContainer.value) {
-            messagesContainer.value.scrollTop =
-                messagesContainer.value.scrollHeight;
-        }
-        isScrollScheduled = false;
+const errorKey = ref<string | null>(null);
+let viewGeneration = 0;
+let counter = 0;
+function refreshConversation(): void {
+    pendingRefreshes.value++;
+    router.reload({
+        only: ['conversation', 'active_run', 'conversations'],
+        onFinish: () => {
+            pendingRefreshes.value--;
+        },
     });
 }
-
-// Suggestion chips — icons are module-level constants so no need for computed.
-const suggestions = [
-    { icon: Sparkles, textKey: 'dashboard.suggestions.inertia' as const },
-    { icon: Sparkles, textKey: 'dashboard.suggestions.route' as const },
-    { icon: Sparkles, textKey: 'dashboard.suggestions.schema' as const },
-] as const;
-
-function resizeTextarea(): void {
-    if (chatTextarea.value) {
-        chatTextarea.value.style.height = 'auto';
-        chatTextarea.value.style.height = `${chatTextarea.value.scrollHeight}px`;
-    }
+function scrollToBottom(): void {
+    void nextTick(() => {
+        if (messagesContainer.value)
+            messagesContainer.value.scrollTop =
+                messagesContainer.value.scrollHeight;
+    });
 }
-
+const suggestions = [
+    { icon: Sparkles, textKey: 'dashboard.suggestions.inertia' },
+    { icon: Sparkles, textKey: 'dashboard.suggestions.route' },
+    { icon: Sparkles, textKey: 'dashboard.suggestions.schema' },
+];
 watch(inputMessage, () => {
-    nextTick(resizeTextarea);
-});
-
-const bridge = useAgentRunBridge({
-    initialRun: props.activeRun ?? null,
-    onRunStarted: () => {
-        // No-op: submitMessage handles the optimistic sidebar insert after
-        // bridge.start() resolves, and on mount there is nothing to insert.
-    },
-    onTextDelta: (delta) => {
-        if (
-            streamingMsgIndex.value >= 0 &&
-            streamingMsgIndex.value < localMessages.value.length
-        ) {
-            const current = localMessages.value[streamingMsgIndex.value];
-            current.content = (current.content ?? '') + delta;
-            scrollToBottom();
+    void nextTick(() => {
+        if (chatTextarea.value) {
+            chatTextarea.value.style.height = 'auto';
+            chatTextarea.value.style.height = `${chatTextarea.value.scrollHeight}px`;
         }
+    });
+});
+function reconcile(run: AgentRunSnapshot): ChatMessage {
+    let message = localMessages.value.find(
+        (m) => m.id === run.assistant_message_id,
+    );
+    if (!message) {
+        message = {
+            id: run.assistant_message_id,
+            role: 'assistant',
+            content: run.assistant_content,
+        };
+        localMessages.value.push(message);
+        message = localMessages.value[localMessages.value.length - 1];
+    }
+    message.content = run.assistant_content;
+    message.status = run.status;
+    return message;
+}
+const bridge = useAgentRunBridge({
+    initialRun: null,
+    onRunStarted: (run) => {
+        canonicalId.value = run.conversation_id;
+        reconcile(run);
+    },
+    onTextDelta: () => {
+        if (bridge.activeRun.value) reconcile(bridge.activeRun.value);
+        scrollToBottom();
     },
     onToolActivity: (tool) => {
         currentTool.value = tool;
     },
-    onTerminal: (status, error) => {
-        if (
-            streamingMsgIndex.value >= 0 &&
-            streamingMsgIndex.value < localMessages.value.length
-        ) {
-            const bubble = localMessages.value[streamingMsgIndex.value];
-
-            if (status === 'failed' && error !== null) {
-                bubble.content = error;
-            } else if (status === 'cancelled') {
-                bubble.content = (bubble.content ?? '') + '\n\n[cancelled]';
-            }
-        }
-
-        currentTool.value = null;
-        localProcessing.value = false;
-
-        if (status === 'completed') {
-            void router.reload({ only: ['conversation', 'active_run'] });
-        }
+    onClarification: (clarification) => {
+        if (bridge.activeRun.value)
+            reconcile(bridge.activeRun.value).clarification = clarification;
     },
-    onError: (message) => {
-        if (
-            streamingMsgIndex.value >= 0 &&
-            streamingMsgIndex.value < localMessages.value.length
-        ) {
-            localMessages.value[streamingMsgIndex.value].content = message;
-        }
-
+    onTerminal: () => {
+        if (bridge.activeRun.value) reconcile(bridge.activeRun.value);
         currentTool.value = null;
-        localProcessing.value = false;
+        submitting.value = false;
+        if (
+            canonicalId.value &&
+            page.url.startsWith(`/conversations/${canonicalId.value}`)
+        )
+            refreshConversation();
+    },
+    onError: (key) => {
+        errorKey.value = key;
     },
 });
-
-function selectSuggestion(text: string): void {
-    inputMessage.value = text;
-}
-
-function applySnapshot(
-    conv: ChatConversation | undefined,
-    run: AgentRunSnapshot | null,
-): void {
-    if (conv) {
-        localMessages.value = conv.messages.map((m) => ({
-            id: generateMessageId(),
-            role: m.role,
-            content: m.content,
-        }));
-    } else {
-        localMessages.value = [];
-    }
-
-    if (run !== null && (run.status === 'queued' || run.status === 'running')) {
-        const newIndex =
-            localMessages.value.push({
-                id: generateMessageId(),
-                role: 'assistant',
-                content: run.assistant_content,
-            }) - 1;
-        streamingMsgIndex.value = newIndex;
-        localProcessing.value = true;
-    } else {
-        streamingMsgIndex.value = -1;
-        localProcessing.value = false;
-    }
-
-    scrollToBottom();
-}
-
+const activeRunSnapshot = bridge.activeRun;
+const isRunActive = computed(
+    () =>
+        activeRunSnapshot.value?.status === 'queued' ||
+        activeRunSnapshot.value?.status === 'running',
+);
+const localProcessing = computed(
+    () => submitting.value || isRunActive.value || pendingRefreshes.value > 0,
+);
+const streamingMsgIndex = computed(() =>
+    localMessages.value.findIndex(
+        (m) => m.id === activeRunSnapshot.value?.assistant_message_id,
+    ),
+);
 watch(
-    [() => props.conversation, () => props.activeRun],
-    ([newConv, newActiveRun]) => {
-        applySnapshot(newConv, newActiveRun ?? null);
+    [() => props.conversation, () => props.active_run],
+    ([conversation, run]) => {
+        ++viewGeneration;
+        canonicalId.value = conversation?.id ?? null;
+        localMessages.value =
+            conversation?.messages.map((message) => ({ ...message })) ?? [];
+        submitting.value = false;
+        errorKey.value = null;
+        currentTool.value = null;
+        if (run) reconcile(run);
+        bridge.attach(run ?? null);
+        scrollToBottom();
     },
     { immediate: true },
 );
-
-async function submitMessage(): Promise<void> {
-    if (!inputMessage.value.trim() || localProcessing.value) {
-        return;
-    }
-
-    const promptText = inputMessage.value;
+function messageStatusLabel(message: ChatMessage): string {
+    if (message.status === 'cancelled') return t('agent.cancelled');
+    const run = activeRunSnapshot.value;
+    return t(
+        run?.assistant_message_id === message.id && run.error
+            ? run.error
+            : 'ai.errors.provider_failed',
+    );
+}
+function selectSuggestion(text: string): void {
+    inputMessage.value = text;
+}
+async function submitMessage(clarificationMessageId?: string): Promise<void> {
+    if (!inputMessage.value.trim() || localProcessing.value) return;
+    const latest = localMessages.value.at(-1);
+    if (
+        !clarificationMessageId &&
+        latest?.clarification &&
+        !latest.clarification_answer
+    )
+        clarificationMessageId = latest.id;
+    const prompt = inputMessage.value.trim();
     inputMessage.value = '';
-
-    // Remove any leftover empty assistant bubbles from a previous failed/incomplete run.
-    while (
-        localMessages.value.length > 0 &&
-        localMessages.value[localMessages.value.length - 1].role ===
-            'assistant' &&
-        (localMessages.value[localMessages.value.length - 1].content ?? '') ===
-            ''
-    ) {
-        localMessages.value.pop();
-    }
-
-    // Instantly append user message and empty assistant message block.
+    submitting.value = true;
+    errorKey.value = null;
+    const version = viewGeneration;
+    const temporaryId = `optimistic-${++counter}`;
     localMessages.value.push({
-        id: generateMessageId(),
+        id: temporaryId,
         role: 'user',
-        content: promptText,
+        content: prompt,
     });
-    streamingMsgIndex.value =
-        localMessages.value.push({
-            id: generateMessageId(),
-            role: 'assistant',
-            content: '',
-        }) - 1;
-    localProcessing.value = true;
     scrollToBottom();
-
     try {
-        const started = await bridge.start({
-            prompt: promptText,
-            conversationId: props.conversation?.id ?? null,
+        const run = await bridge.start({
+            prompt,
+            conversationId: canonicalId.value,
+            clarificationMessageId,
         });
-
-        // For brand-new conversations, optimistically surface the id in the
-        // sidebar and ask AppLayout to highlight it without a full navigation.
-        if (!props.conversation && page.props.conversations) {
-            const title =
-                promptText.length > 35
-                    ? `${promptText.slice(0, 35)}...`
-                    : promptText;
+        if (version !== viewGeneration) return;
+        const selected = localMessages.value.find(
+            (message) => message.id === clarificationMessageId,
+        );
+        if (selected) selected.clarification_answer = prompt;
+        const title =
+            props.conversation?.title ??
+            (prompt.length > 35 ? `${prompt.slice(0, 35)}...` : prompt);
+        if (
+            !page.props.conversations.some(
+                (conversation) => conversation.id === run.conversation_id,
+            )
+        )
             page.props.conversations.unshift({
-                id: started.conversation_id,
+                id: run.conversation_id,
                 title,
                 updated_at: new Date().toISOString(),
             });
-            pendingConversationId.value = started.conversation_id;
-        }
-    } catch (e: unknown) {
-        console.error('Failed to start agent run:', e);
+        pendingRefreshes.value++;
+        router.replace({
+            url: `/conversations/${run.conversation_id}`,
+            preserveState: true,
+            preserveScroll: true,
+            onFinish: () => {
+                if (version === viewGeneration) refreshConversation();
+                pendingRefreshes.value--;
+            },
+        });
+    } catch (error) {
         if (
-            streamingMsgIndex.value >= 0 &&
-            streamingMsgIndex.value < localMessages.value.length
-        ) {
-            localMessages.value[streamingMsgIndex.value].content =
-                e instanceof Error && e.message
-                    ? e.message
-                    : t('agent.error_generic');
-        }
-        localProcessing.value = false;
-        streamingMsgIndex.value = -1;
+            version !== viewGeneration ||
+            (error instanceof DOMException && error.name === 'AbortError')
+        )
+            return;
+        localMessages.value = localMessages.value.filter(
+            (message) => message.id !== temporaryId,
+        );
+        inputMessage.value = prompt;
+        errorKey.value = 'agent.error_generic';
+    } finally {
+        if (version === viewGeneration) submitting.value = false;
     }
 }
-
+function selectClarification(message: ChatMessage, option: string): void {
+    if (message.clarification_answer || localProcessing.value) return;
+    inputMessage.value = option;
+    void submitMessage(message.id);
+}
+function onComposerKey(event: KeyboardEvent): void {
+    if (
+        event.key !== 'Enter' ||
+        event.shiftKey ||
+        event.isComposing ||
+        event.keyCode === 229
+    )
+        return;
+    event.preventDefault();
+    void submitMessage();
+}
 async function onCancelRun(): Promise<void> {
+    errorKey.value = null;
     await bridge.cancel();
 }
-
-// Bypass Vue's reactivity for the ref returned by the bridge composable.
-const activeRunSnapshot = computed<AgentRunSnapshot | null>(
-    () => bridge.activeRun.value,
-);
-
-const isRunActive = computed<boolean>(
-    () =>
-        activeRunSnapshot.value !== null &&
-        (activeRunSnapshot.value.status === 'queued' ||
-            activeRunSnapshot.value.status === 'running'),
-);
+function retryConnection(): void {
+    errorKey.value = null;
+    bridge.retry();
+}
 </script>
 
 <template>
@@ -322,6 +307,24 @@ const isRunActive = computed<boolean>(
                                 ></span>
                             </div>
                         </div>
+                        <p
+                            v-if="
+                                msg.role === 'assistant' &&
+                                (msg.status === 'failed' ||
+                                    msg.status === 'cancelled')
+                            "
+                            class="text-xs text-on-surface-variant"
+                        >
+                            {{ messageStatusLabel(msg) }}
+                        </p>
+                        <ClarificationCard
+                            v-if="msg.clarification"
+                            :clarification="msg.clarification"
+                            :disabled="localProcessing"
+                            :selected-option="msg.clarification_answer ?? null"
+                            :show-question="true"
+                            @select="selectClarification(msg, $event)"
+                        />
                     </div>
 
                     <div
@@ -379,19 +382,33 @@ const isRunActive = computed<boolean>(
 
             <!-- Run Status Badge (above input) -->
             <RunStatusBadge
-                v-if="
-                    isRunActive ||
-                    activeRunSnapshot?.status === 'failed' ||
-                    activeRunSnapshot?.status === 'cancelled'
-                "
+                v-if="isRunActive"
                 :run="activeRunSnapshot"
                 :current-tool="currentTool"
+                :cancelling="bridge.cancelling.value"
                 @cancel="onCancelRun"
             />
 
+            <div
+                v-if="
+                    errorKey || bridge.connectionStatus.value === 'reconnecting'
+                "
+                role="status"
+                class="mx-auto mb-2 max-w-3xl text-xs"
+            >
+                {{ t(errorKey ?? 'agent.reconnecting') }}
+                <button
+                    v-if="bridge.connectionStatus.value === 'disconnected'"
+                    type="button"
+                    class="ml-2 underline"
+                    @click="retryConnection"
+                >
+                    {{ t('agent.retry_connection') }}
+                </button>
+            </div>
             <!-- Chat Input form -->
             <form
-                @submit.prevent="submitMessage"
+                @submit.prevent="submitMessage()"
                 class="relative max-w-3xl w-full mx-auto mt-auto"
             >
                 <div
@@ -402,12 +419,10 @@ const isRunActive = computed<boolean>(
                         v-model="inputMessage"
                         rows="1"
                         :placeholder="t('dashboard.type_message')"
-                        :disabled="isRunActive"
+                        :disabled="localProcessing"
                         class="flex-1 resize-none bg-transparent py-2 px-3 text-xs outline-none text-on-surface placeholder:text-on-surface-variant/50 max-h-32 overflow-y-auto scrollbar-none disabled:opacity-60"
-                        @keydown.enter.exact="submitMessage"
-                        @keydown.enter.shift.exact.prevent
-                        @keydown.enter.meta.exact.prevent="submitMessage"
-                        @keydown.enter.ctrl.exact.prevent="submitMessage"
+                        @keydown="onComposerKey"
+                        :aria-label="t('dashboard.type_message')"
                     ></textarea>
                     <button
                         type="submit"

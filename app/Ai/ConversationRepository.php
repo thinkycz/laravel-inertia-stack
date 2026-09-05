@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace App\Ai;
 
+use App\Models\AgentRun;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Laravel\Ai\Messages\AssistantMessage;
 use Laravel\Ai\Messages\Message;
+use Laravel\Ai\Messages\ToolResultMessage;
 use Laravel\Ai\Models\Conversation;
+use Laravel\Ai\Models\ConversationMessage;
+use Laravel\Ai\Responses\Data\ToolCall;
+use Laravel\Ai\Responses\Data\ToolResult;
 use Thinkycz\LaravelCore\Support\Config;
 use Thinkycz\LaravelCore\Support\Typer;
 
@@ -19,18 +25,6 @@ class ConversationRepository
      * Maximum number of conversations surfaced in the sidebar payload.
      */
     public const int SIDEBAR_LIMIT = 50;
-
-    /**
-     * Create a conversation owned by the given user.
-     */
-    public function createForUser(User $user, string $message): Conversation
-    {
-        return Conversation::create([
-            'id' => Str::uuid()->toString(),
-            'user_id' => $this->userId($user),
-            'title' => Str::limit($message, 35),
-        ]);
-    }
 
     /**
      * Resolve the most recently updated conversations for the sidebar.
@@ -73,40 +67,69 @@ class ConversationRepository
     public function delete(Conversation $conversation): void
     {
         DB::transaction(function () use ($conversation): void {
-            DB::table($this->messagesTable())
-                ->where('conversation_id', $this->conversationId($conversation))
-                ->delete();
-
+            $conversation->newQuery()->whereKey($conversation->getKey())->lockForUpdate()->first();
+            DB::table($this->messagesTable())->where('conversation_id', $this->conversationId($conversation))->delete();
             $conversation->delete();
         });
     }
 
     /**
-     * Delete the conversation only when no messages were persisted.
+     * Serialize persisted history, including partial terminal messages.
+     *
+     * @return array{id: string, title: string, messages: list<array<string, mixed>>}
      */
-    public function deleteIfEmpty(Conversation $conversation): void
+    public function dashboardPayload(Conversation $conversation): array
     {
-        if ($this->hasMessages($conversation)) {
-            return;
+        $messages = [];
+        foreach (ConversationMessage::query()->where('conversation_id', $this->conversationId($conversation))
+            ->orderByDesc('id')->limit(100)->get()->reverse() as $message) {
+            $meta = Typer::assertArray($message->getAttribute('meta'));
+            $messages[] = [
+                'id' => Typer::assertString($message->getKey()),
+                'role' => Typer::assertString($message->getAttribute('role')),
+                'content' => Typer::assertString($message->getAttribute('content')),
+                'status' => Typer::assertString($message->getAttribute('status')),
+                'clarification' => $meta['clarification'] ?? null,
+                'clarification_answer' => $message->getAttribute('clarification_answer'),
+            ];
         }
 
-        $this->delete($conversation);
+        return ['id' => $this->conversationId($conversation), 'title' => $this->title($conversation), 'messages' => $messages];
     }
 
     /**
-     * Serialize a conversation for the dashboard page.
+     * Supply completed prior exchanges only; the SDK appends the current prompt.
      *
-     * @param iterable<Message> $messages
-     *
-     * @return array{id: string, title: string, messages: array<int, array{role: string, content: string|null}>}
+     * @return list<Message>
      */
-    public function dashboardPayload(Conversation $conversation, iterable $messages): array
+    public function providerMessages(AgentRun $run): array
     {
-        return [
-            'id' => $this->conversationId($conversation),
-            'title' => $this->title($conversation),
-            'messages' => $this->messagesPayload($messages),
-        ];
+        $messages = [];
+        $records = ConversationMessage::query()->where('conversation_id', $run->getConversationId())
+            ->where('status', AgentRun::STATUS_COMPLETED)->where('id', '<', $run->getUserMessageId())
+            ->orderByDesc('id')->limit(100)->get()->reverse();
+        foreach ($records as $record) {
+            $content = Typer::assertString($record->getAttribute('content'));
+            if ($record->getAttribute('role') === 'user') {
+                $messages[] = new Message('user', $content);
+
+                continue;
+            }
+            $calls = [];
+            foreach (Typer::assertArray($record->getAttribute('tool_calls')) as $call) {
+                $calls[] = ToolCall::fromArray(Typer::assertArray($call));
+            }
+            $messages[] = new AssistantMessage($content, new Collection($calls));
+            $results = [];
+            foreach (Typer::assertArray($record->getAttribute('tool_results')) as $result) {
+                $results[] = ToolResult::fromArray(Typer::assertArray($result));
+            }
+            if ($results !== []) {
+                $messages[] = new ToolResultMessage(new Collection($results));
+            }
+        }
+
+        return $messages;
     }
 
     /**
@@ -123,37 +146,6 @@ class ConversationRepository
     public function messagesTable(): string
     {
         return Config::inject()->parseNullableString('ai.conversations.tables.messages') ?? 'agent_conversation_messages';
-    }
-
-    /**
-     * Determine whether the conversation has persisted messages.
-     */
-    private function hasMessages(Conversation $conversation): bool
-    {
-        return DB::table($this->messagesTable())
-            ->where('conversation_id', $this->conversationId($conversation))
-            ->exists();
-    }
-
-    /**
-     * Serialize messages for the dashboard page.
-     *
-     * @param iterable<Message> $messages
-     *
-     * @return array<int, array{role: string, content: string|null}>
-     */
-    private function messagesPayload(iterable $messages): array
-    {
-        $payload = [];
-
-        foreach ($messages as $message) {
-            $payload[] = [
-                'role' => $message->role->value,
-                'content' => Typer::assertNullableString($message->content),
-            ];
-        }
-
-        return $payload;
     }
 
     /**

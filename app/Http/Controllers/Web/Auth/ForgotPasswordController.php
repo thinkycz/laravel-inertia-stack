@@ -8,13 +8,11 @@ use App\Http\Controllers\Web\Concerns\ThrottlesWebRequests;
 use App\Http\Controllers\Web\Concerns\ValidatesWebRequests;
 use Illuminate\Contracts\Auth\PasswordBroker;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Thinkycz\LaravelCore\Models\BaseUser;
-use Thinkycz\LaravelCore\Support\Config;
 use Thinkycz\LaravelCore\Support\Resolver;
+use Thinkycz\LaravelCore\Support\ThrottleSupport;
 use Thinkycz\LaravelCore\Support\Thrower;
 use Thinkycz\LaravelCore\Support\Typer;
 use Thinkycz\LaravelCore\Validation\AuthValidity;
@@ -33,7 +31,7 @@ class ForgotPasswordController
     }
 
     /**
-     * Send or apply the reset flow configured by the core package.
+     * Send a reset link without changing credentials.
      */
     public function store(Request $request): Response
     {
@@ -43,8 +41,6 @@ class ForgotPasswordController
             'email' => $authValidity->email()->required()->toArray(),
         ]);
 
-        $clearThrottle = $this->hit($this->limit());
-
         $user = Typer::assertNullableInstance(Resolver::resolveEloquentUserProvider('users')->retrieveByCredentials([
             'email' => $validated->assertString('email'),
         ]), BaseUser::class);
@@ -53,45 +49,12 @@ class ForgotPasswordController
             Thrower::default()->message('email', Typer::assertString(\__(PasswordBroker::INVALID_USER)))->throw();
         }
 
-        if (self::sendRawPassword()) {
-            $password = Str::password(16);
+        $broker = Resolver::resolvePasswordBroker('users');
+        ThrottleSupport::delivery('password', $user->getEmailForPasswordReset());
+        $user->sendPasswordResetNotification($broker->createToken($user));
 
-            DB::transaction(static function () use ($user, $password): void {
-                $user->update([
-                    'password' => $password,
-                ]);
-
-                $user->databaseTokens()->getQuery()->delete();
-            });
-
-            $user->sendPasswordNewPasswordSettedNotification($password);
-
-            $clearThrottle();
-
-            Inertia::flash('success', \__('A new password has been sent to your email address.'));
-        } else {
-            $broker = Resolver::resolvePasswordBroker('users');
-
-            $token = $broker->createToken($user);
-
-            $user->sendPasswordResetNotification($token);
-
-            $clearThrottle();
-
-            Inertia::flash('success', \__('A password reset link has been sent to your email address.'));
-        }
+        Inertia::flash('success', \__('A password reset link has been sent to your email address.'));
 
         return Inertia::render('auth/ForgotPassword');
-    }
-
-    /**
-     * Read the send-raw-password flag from auth config for the users
-     * broker. When true, the forgot-password flow generates a new
-     * password and emails it. When false, it uses the standard
-     * broker flow (createToken + sendPasswordResetNotification).
-     */
-    private static function sendRawPassword(): bool
-    {
-        return Config::inject()->assertNullableBool('auth.passwords.users.send_raw_password') ?? false;
     }
 }

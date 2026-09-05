@@ -15,6 +15,7 @@ use Thinkycz\LaravelCore\Routing\AutomaticController;
 use Thinkycz\LaravelCore\Support\Config;
 use Thinkycz\LaravelCore\Support\Parser;
 use Thinkycz\LaravelCore\Support\Resolver;
+use Thinkycz\LaravelCore\Support\ThrottleSupport;
 use Thinkycz\LaravelCore\Support\Typer;
 use Thinkycz\LaravelCore\Validation\AuthValidity;
 
@@ -49,6 +50,7 @@ class EmailVerificationResendController extends AutomaticController
             return Resolver::resolveResponseFactory()->noContent();
         }
 
+        ThrottleSupport::delivery('verification', $user->getEmailForPasswordReset());
         $user->sendEmailVerificationNotification();
 
         return Resolver::resolveResponseFactory()->noContent();

@@ -47,8 +47,8 @@
         },
         "forgot": {
             "title": "Zabudnuté heslo",
-            "subtitle": "Odošleme nové vygenerované heslo prostredníctvom core mail flow.",
-            "submit": "Odoslať heslo"
+            "subtitle": "Zašleme vám e-mailom odkaz na obnovenie hesla.",
+            "submit": "Odoslať odkaz na obnovenie"
         },
         "reset": {
             "title": "Obnoviť heslo",
@@ -116,11 +116,26 @@
         "recommended": "Odporúčané",
         "resume_existing": "Obnovuje sa existujúci beh…",
         "running": "Beží…",
-        "tool_running": "Používa sa {tool}…"
+        "tool_running": "Používa sa {tool}…",
+        "cancel_failed": "Zrušenie sa nepodarilo. Skúste to znova.",
+        "connection_lost": "Spojenie bolo prerušené. Beh môže stále prebiehať.",
+        "run_unavailable": "Tento beh už nie je dostupný.",
+        "reconnecting": "Obnovovanie spojenia…",
+        "retry_connection": "Obnoviť spojenie",
+        "cancelling": "Rušenie…",
+        "clarification_tool": "Spresnenie"
     },
     "locale": {
         "en": "Angličtina",
         "cs": "Čeština",
         "sk": "Slovenčina"
+    },
+    "ai": {
+        "errors": {
+            "provider_failed": "Asistent nemohol dokončiť odpoveď. Skúste to znova.",
+            "dispatch_failed": "Odpoveď sa nepodarilo zaradiť na spracovanie. Skúste to znova.",
+            "worker_failed": "Spracovanie sa zastavilo pred dokončením odpovede.",
+            "reconciliation_failed": "Vypršal čas na odpoveď. Skúste to znova."
+        }
     }
 }

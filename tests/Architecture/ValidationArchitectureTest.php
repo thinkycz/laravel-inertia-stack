@@ -2,50 +2,17 @@
 
 declare(strict_types=1);
 
-if (\is_dir(\dirname(__DIR__, 2) . '/app/Http/Validation')) {
-    \arch('validity classes end with the Validity suffix', function (): void {
-        \expect('App\\Http\\Validation')
-            ->toHaveSuffix('Validity');
-    });
+require_once __DIR__ . '/Helpers.php';
 
-    \arch('validity classes expose a BaseValidity property', function (): void {
-        foreach (\glob(\base_path('app/Http/Validation/*.php')) as $file) {
-            $contents = (string) \file_get_contents($file);
+use Thinkycz\LaravelCore\Validation\AuthValidity;
 
-            \expect($contents)
-                ->toMatch('/public BaseValidity \\$baseValidity/');
-        }
-    });
-
-    \arch('validity classes construct BaseValidity', function (): void {
-        foreach (\glob(\base_path('app/Http/Validation/*.php')) as $file) {
-            $contents = (string) \file_get_contents($file);
-
-            \expect($contents)
-                ->toMatch('/\\$this->baseValidity = new BaseValidity\\(\\)/');
-        }
-    });
-
-    \arch('validity id() methods call ->exists on their own table', function (): void {
-        foreach (\glob(\base_path('app/Http/Validation/*.php')) as $file) {
-            $contents = (string) \file_get_contents($file);
-
-            if (\preg_match('/public function id\\(\\): Validity\\s*\\{[^}]*exists\\(\'([^\']+)\',\\s*\'id\'\\)/', $contents, $matches) === 1) {
-                $table = $matches[1];
-
-                \expect($contents)
-                    ->toMatch('/public function id\\(\\): Validity\\s*\\{[^}]*exists\\(\'' . \preg_quote($table, '/') . '\',\\s*\'id\'\\)/');
-            }
-        }
-    });
-
-    \arch('validity classes never call ->required() or ->nullable() directly', function (): void {
-        foreach (\glob(\base_path('app/Http/Validation/*.php')) as $file) {
-            $contents = (string) \file_get_contents($file);
-
-            \expect($contents)
-                ->not->toMatch('/->required\\(\\)/')
-                ->not->toMatch('/->nullable\\(\\)/');
-        }
-    });
-}
+\arch('validity classes inherit AuthValidity and keep presence rules at callers', function (): void {
+    foreach (\arch_php_files(\base_path('app/Http/Validation')) as $file) {
+        $class = 'App\\' . \str_replace('/', '\\', \mb_substr($file, \mb_strlen(\app_path()) + 1, -4));
+        \expect($class)->toEndWith('Validity');
+        \expect(\is_subclass_of($class, AuthValidity::class))->toBeTrue();
+        $contents = (string) \file_get_contents($file);
+        \expect($contents)->not->toMatch('/->(?:required|nullable)\\(\\)/');
+    }
+    \expect(AuthValidity::inject())->toBeInstanceOf(AuthValidity::class);
+});

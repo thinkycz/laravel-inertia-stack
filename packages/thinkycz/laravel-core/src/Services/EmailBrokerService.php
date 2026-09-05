@@ -42,10 +42,6 @@ class EmailBrokerService
      */
     public function validate(string $guard, string $email, string $token): bool
     {
-        if (!Config::inject()->appEnvIs(['production']) && $token === '111111') {
-            return true;
-        }
-
         $expected = Resolver::resolveCacheManager()->get($this->cacheKey($guard, $email));
 
         return \is_string($expected) && \hash_equals($expected, $token);

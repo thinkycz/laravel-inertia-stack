@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.describe('Protected routes', () => {
     test('guest is redirected to login when accessing dashboard', async ({

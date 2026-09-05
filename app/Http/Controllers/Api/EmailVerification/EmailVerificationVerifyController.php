@@ -8,6 +8,7 @@ use App\Enums\GuardEnum;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Auth\Passwords\PasswordBroker;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Thinkycz\LaravelCore\Exceptions\GenericHttpException;
 use Thinkycz\LaravelCore\Http\ApiFormRequest;
@@ -51,15 +52,15 @@ class EmailVerificationVerifyController extends AutomaticController
             return Resolver::resolveResponseFactory()->noContent();
         }
 
-        $tokenExists = EmailBrokerService::inject()->validate($user->getTable(), $user->getEmailForVerification(), $validated->assertString('token'));
-
-        if ($tokenExists === false) {
-            $request->thrower()
-                ->error('token', PasswordBroker::INVALID_TOKEN)
-                ->throw();
-        }
-
-        $user->markEmailAsVerified();
+        DB::transaction(function () use ($request, $user, $validated): void {
+            $current = $user->newQuery()->whereKey($user->getKey())->where('email', $validated->assertString('email'))->lockForUpdate()->first();
+            if (!$current instanceof BaseUser || !$current instanceof MustVerifyEmail || !EmailBrokerService::inject()->validate($current->getTable(), $current->getEmailForVerification(), $validated->assertString('token'))) {
+                $request->thrower()->error('token', PasswordBroker::INVALID_TOKEN)->throw();
+            }
+            $current->markEmailAsVerified();
+            EmailBrokerService::inject()->confirm($current->getTable(), $current->getEmailForVerification());
+        });
+        $user->refresh();
 
         Resolver::resolveEventDispatcher()->dispatch(new Verified($user));
 

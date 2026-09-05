@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-/**
+require_once __DIR__ . '/Helpers.php';
+
+/*
  * Coverage architecture test.
  *
  * `docs/guidelines.md:51` mandates "Every controller must have at
@@ -14,15 +16,12 @@ declare(strict_types=1);
  * excluded.
  */
 \arch('every web controller has a feature test', function (): void {
-    $nestedFiles = \glob(\base_path('app/Http/Controllers/Web/*/*.php')) ?: [];
-    $topLevelFiles = \glob(\base_path('app/Http/Controllers/Web/*.php')) ?: [];
-    $controllerFiles = [...$nestedFiles, ...$topLevelFiles];
+    $controllerFiles = \arch_php_files(\base_path('app/Http/Controllers/Web'));
 
     foreach ($controllerFiles as $file) {
-        $parent = \basename(\dirname($file));
         $shortName = \basename($file, '.php');
 
-        if ($parent === 'Concerns') {
+        if (\str_contains($file, '/Concerns/')) {
             continue;
         }
 
@@ -38,7 +37,7 @@ declare(strict_types=1);
 });
 
 \arch('every api controller has a feature test', function (): void {
-    $controllerFiles = \glob(\base_path('app/Http/Controllers/Api/*/*.php')) ?: [];
+    $controllerFiles = \arch_php_files(\base_path('app/Http/Controllers/Api')) ?: [];
 
     foreach ($controllerFiles as $file) {
         $shortName = \basename($file, '.php');

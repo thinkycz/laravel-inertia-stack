@@ -82,22 +82,15 @@ on the next page.
 controller used `Inertia::render(...)->with('key', ...)`.
 
 **Fix.** Use `Inertia::flash()` for cross-request, or
-`session()->flash()` + same-request `Inertia::render()`.
+`Inertia::flash()` before rendering or redirecting.
 
-### Validation errors need a re-render with the **originating** component
+### Validation errors follow the redirect and session contract
 
-**Problem.** The Inertia-aware `ValidationException` handler
-initially rendered `auth/Login` for every form path. A 422 from
-`/forgot-password` re-rendered the login page; the field errors
-arrived but the form was gone.
-
-**Why it surprised us.** Inertia v3 form submits do **not** set the
-`X-Inertia-Partial-Component` header (only partial reloads do), so
-we couldn't read the originating component from the request.
-
-**Fix.** Resolve the component from the request path with a
-match expression in `bootstrap/app.php`. The `X-Inertia-Partial-
-Component` header still takes precedence for partial reloads.
+The previous custom 422 handler mapped paths to components, including nonexistent
+settings components, and lost the submitting form. That approach was based on an
+incorrect assumption about Inertia. Use Laravel validation redirects and shared
+session errors with Inertia `<Form>`. Do not infer a page component from a POST
+URL or partial-reload headers. Keep JSON API validation responses separate.
 
 ### The HTML body of the Inertia `data-page` script is the source of truth
 
@@ -116,21 +109,14 @@ the XHR.
 
 ## PHPStan in this project
 
-### `@phpstan-ignore` is forbidden, use `mixed` parameter types
+### Correct types instead of suppressing PHPStan
 
-**Problem.** `__()` returns `array|string`. Controllers passing
-the result to a method typed `string $message` fail PHPStan with
-`argument.type`. `(string)` cast is rejected ("Cannot cast
-(array|string) to string"). The temptation is to add
-`@phpstan-ignore-next-line` or widen the parameter to `array`.
-
-**Why it's tempting.** `@phpstan-ignore` is the universal escape
-hatch. The project makes it a hard rule that suppressors throw.
-
-**Fix.** The receiver takes `mixed $message`. The caller passes
-`__('...')` directly; the body stores or compares loosely. The
-project's `no_phpstan_ignore` rule (see `phpstan.neon`) enforces
-this and will surface violations.
+Use `Typer::assertString(\__('...'))` when a consumer requires a translated
+string. Widening parameters to `mixed` solely to silence analysis discards the
+contract. Relationship query callbacks receive the related model builder, not the
+owner model builder. An empty-array assertion returns `array{}`, not an arbitrary
+input generic. These precise contracts remove suppressions without weakening max
+analysis or type certainty.
 
 ### No `assertString()` on `AuthValidity`; use `varchar()`
 
@@ -182,21 +168,13 @@ notification render is never run.
 dispatches the notification through a `Notification::fake()`-aware
 spy **or** an e2e that triggers the real send. We added the e2e.
 
-### E2e flash chains are fragile; phpunit is the better signal
+### Test browser behavior and server behavior at their own boundaries
 
-**Problem.** We spent significant time trying to make the browser
-follow the 302 → guest-redirect → final render chain and surface a
-flashed error. Browser session-cookie lifecycle differs from
-phpunit's request client; the share callback reads from a session
-that does not match what phpunit sees in the same test.
-
-**Why it was tempting.** "If it works in the browser, it's real."
-
-**Fix.** Use phpunit for cross-request flash coverage. E2e covers
-single-request flashes (like the resend button on
-`/verify-email`). The e2e for the invalid-token flash chain was
-dropped in commit `3cafd3a`; phpunit covers the same logic with a
-real token.
+Pest can check validation/session and flash contracts precisely. Browser tests
+must still exercise the resulting navigation and visible form errors. A passing
+server test does not justify removing browser coverage of an important user
+journey. Use the isolated real test server; avoid endpoint mocks that no longer
+match current routes.
 
 ## Dev environment
 
@@ -206,74 +184,38 @@ real token.
 
 **Fix.** If the `.test` domain does not resolve or work, run a local development web server manually using `php artisan serve`.
 
-### `php artisan serve` workers persist; `pkill -f "artisan serve"` is not enough
+### Own test processes and artifacts explicitly
 
-**Problem.** After killing `php artisan serve`, `lsof -i :8000` still
-shows a listener. Subsequent tests time out or land on the wrong
-port (8001, 8002, 8003 if 8000 was taken).
+The browser runner owns a fixed server port, temporary SQLite database, sessions,
+cache and child worker processes. It refuses to reuse another server. Cleanup
+must stop only processes it started and remove only its temporary directory.
+Broad `pkill` commands can terminate unrelated developer work. A busy fixed port
+is a test startup failure, not permission to connect to a different application.
 
-**Why it surprised us.** The process is `php -S 127.0.0.1:8000 ...`
-started by `artisan serve`. `pkill` against the artisan command
-matches the parent shell but not the child PHP `-S` workers.
+### Test cookie attributes deliberately
 
-**Signal.** The dev server returns 200 to `/up` but requests to
-other routes hang. `lsof -i :8000` shows multiple PIDs.
+Local/testing cookies omit the production `__Host-` prefix. Outside those
+environments, cookies are secure, host-only and use path `/`, which satisfies the
+prefix contract. Tests must assert attributes directly and verify shared web/API
+authentication; browser localhost exceptions are not evidence that deployment
+cookie settings are correct.
 
-**Fix.**
+### Keep test diagnostics inside the test-owned workspace
 
-```sh
-pkill -9 -f "artisan serve"
-pkill -9 -f "server.php"     # the underlying -S workers
-lsof -i :8000               # verify clean
-```
-
-For Playwright, the `webServer` block in `playwright.config.ts`
-auto-restarts on a new port if 8000 is taken, which masks the
-problem but produces confusing logs.
-
-### Playwright's `__Host-` Secure cookie is sent over `127.0.0.1` HTTP
-
-**Problem.** `packages/thinkycz/laravel-core/src/Guards/DatabaseTokenGuard.php::cookieSecure()`
-returns `!appEnvIs(['local'])`, so in `testing` the database token
-cookie is `__Host-...; Secure`. RFC 6265bis says `__Host-` cookies
-should only be set over HTTPS. Yet the e2e tests authenticate
-correctly over `http://127.0.0.1:8000`.
-
-**Why it works anyway.** Chromium treats `127.0.0.1` (and
-`localhost`) as a "potentially trustworthy origin" per the
-Secure Contexts spec, so the browser sends the cookie.
-
-**Implication.** Don't waste time on `Secure` flag debugging for
-`__Host-` cookies over localhost. They are sent.
-
-### E2e `Log::info()` is a no-op in the testing env
-
-**Problem.** The e2e dev server runs with `APP_ENV=testing`. The
-default log channel in `testing` is `'null'`
-(`config/logging.php:23`). So `Log::info('debug')` writes nothing.
-
-**Why it surprised us.** Logs from phpunit tests (which run in
-`testing` too) sometimes show up. But the dev server's log channel
-is a different code path that resolves the same config.
-
-**Fix.** For dev-server debugging, use
-`file_put_contents('/tmp/trace.log', ..., FILE_APPEND)` from inside
-the controller or middleware. Read the file with `cat` or
-`tail -f`. Clean up the debug code and `/tmp/trace.log` before
-committing.
+Inspect the browser runner and worker logs from the test's temporary directory.
+If more logging is needed, configure the disposable environment or use existing
+test assertions. Do not insert hardcoded `/tmp` writes into application request
+handlers or depend on developer logging configuration.
 
 ## Workflow
 
-### `make` is the only entry; never run ad-hoc scripts
+### Inspect check commands before running them
 
-**Why.** The Makefile encodes the exact pipeline: `pint` →
-`prettier` → `phpstan` → audits → `phpunit` → `playwright`. Ad-hoc
-shell commands (`./vendor/bin/pint`, `npx playwright test`)
-miss audits or run against stale caches.
-
-**Signal.** If you find yourself running commands in series, ask
-whether a `make` target covers it. The `Makefile` is the source of
-truth.
+Make is the normal workflow entry point. Targeted Pest, Vitest and TypeScript
+commands are appropriate during development. `make check` covers static analysis,
+formatting, dependency audits, build and PHP/frontend unit tests; `make e2e` is a
+separate browser check. Never infer isolation from a command name: inspect its
+bootstrap and database selection first. Tests must not clear developer caches.
 
 ### Run `make fix` then `make check` before every commit
 
@@ -282,3 +224,29 @@ rewrites native function calls. PHPStan catches type errors that
 are invisible at runtime. Prettier aligns the frontend. Audits
 flag supply-chain issues. Without the loop, the next `make check`
 on CI fails on a fixable lint issue.
+
+## Conversation lifecycle audit lessons
+
+The SDK's remembering middleware and application writes both persisted messages,
+so a single turn duplicated the prompt and response. Assign one persistence owner
+and test the resulting row count and provider context together.
+
+A pre-insert active-run lookup is insufficient under concurrency. Enforce the
+invariant in the database and claim work atomically. Queue redelivery must not
+re-enter a running or terminal run. Guard cancellation, completion and deletion
+through the same persistence boundary and test competing transitions.
+
+Streaming every tiny delta separately caused hundreds of SQL statements. Buffer
+writes and measure with a deterministic 200-delta fake response. A lower query
+count is evidence for that workload, not a universal throughput guarantee.
+
+Connection loss is not completion. Keep the server lifecycle separate from
+transport retry state, and reconcile snapshots into their persisted assistant
+message. Use the server's returned conversation ID before accepting a second
+prompt. Clarification choices are persisted next-turn input, not a continuation
+of a finished provider stream.
+
+Generator templates require execution tests too. The disposable CRUD contract
+found ownership leaks, invalid pagination defaults, incompatible SQLite fulltext
+DDL, imprecise types and a generated test expecting 200 for a 201 response.
+Syntax checking templates alone would not have established their behavior.

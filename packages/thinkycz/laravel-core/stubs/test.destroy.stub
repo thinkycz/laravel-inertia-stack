@@ -9,20 +9,33 @@ use Database\Factories\{{ model }}Factory;
 use Database\Factories\UserFactory;
 use Thinkycz\LaravelCore\Support\Resolver;
 
-test('destroy {{ table }}', function (): void {
+\test('destroy {{ table }}', function (): void {
     $auth = UserFactory::new()->createOne();
-    expect($auth)->toBeInstanceOf(User::class);
+    \expect($auth)->toBeInstanceOf(User::class);
 
     $model = {{ model }}Factory::new()
         ->for($auth)
         ->createOne();
-    expect($model)->toBeInstanceOf({{ model }}::class);
+    \expect($model)->toBeInstanceOf({{ model }}::class);
 
     $data = [
         'id' => $model->getKey(),
     ];
 
-    $response = $this->be($auth)->post(Resolver::resolveUrlGenerator()->action({{ model }}DestroyController::class), $data);
+    $response = $this->be($auth)->postJson(Resolver::resolveUrlGenerator()->action({{ model }}DestroyController::class), $data);
 
     $response->assertNoContent();
+});
+
+\test('guest cannot destroy {{ table }}', function (): void {
+    $this->postJson(Resolver::resolveUrlGenerator()->action({{ model }}DestroyController::class))->assertUnauthorized();
+});
+
+\test('cannot destroy another user\'s {{ table }}', function (): void {
+    $owner = UserFactory::new()->createOne();
+    $other = UserFactory::new()->createOne();
+    $model = {{ model }}Factory::new()->for($owner)->createOne();
+
+    $this->be($other)->postJson(Resolver::resolveUrlGenerator()->action({{ model }}DestroyController::class, ['id' => $model->getKey()]), ['title' => 'Changed'])->assertNotFound();
+    $this->assertDatabaseHas('{{ table }}', ['id' => $model->getKey(), 'title' => $model->getTitle()]);
 });

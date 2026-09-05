@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Password;
 
 use App\Enums\GuardEnum;
-use App\Models\User;
 use Illuminate\Contracts\Auth\PasswordBroker;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Thinkycz\LaravelCore\Http\ApiFormRequest;
@@ -45,25 +45,28 @@ class PasswordResetController extends AutomaticController
                 ->throw();
         }
 
-        $tokenExists = $passwordBroker->tokenExists($user, $validated->assertString('token'));
+        DB::transaction(function () use ($request, $user, $validated, $passwordBroker, $userProvider): void {
+            $user = Typer::assertInstance($user->newQuery()->whereKey($user->getKey())->lockForUpdate()->firstOrFail(), BaseUser::class);
+            $tokenExists = $user->getEmailForPasswordReset() === $validated->assertString('email') && $passwordBroker->tokenExists($user, $validated->assertString('token'));
 
-        if ($tokenExists === false) {
-            $request->thrower()
-                ->error('token', PasswordBroker::INVALID_TOKEN)
-                ->throw();
-        }
+            if ($tokenExists === false) {
+                $request->thrower()
+                    ->error('token', PasswordBroker::INVALID_TOKEN)
+                    ->throw();
+            }
 
-        $user->update([
-            'password' => $validated->assertString('password'),
-        ]);
+            $user->update([
+                'password' => $validated->assertString('password'),
+            ]);
 
-        if ($user->getRememberToken() !== '') {
-            $userProvider->updateRememberToken($user, Str::random(60));
-        }
+            if ($user->getRememberToken() !== '') {
+                $userProvider->updateRememberToken($user, Str::random(60));
+            }
 
-        $user->databaseTokens()->getQuery()->delete();
+            $user->databaseTokens()->getQuery()->delete();
 
-        $passwordBroker->deleteToken($user);
+            $passwordBroker->deleteToken($user);
+        });
 
         Resolver::resolveDatabaseTokenGuard($user->getTable())->login($user);
 

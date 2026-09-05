@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Helpers.php';
+
 \arch('controllers have the Controller suffix')
     ->expect('App\\Http\\Controllers')
     ->toHaveSuffix('Controller')
@@ -25,7 +27,7 @@ if (\is_dir(\dirname(__DIR__, 2) . '/app/Http/Validation')) {
 }
 
 \arch('enums end with Enum', function (): void {
-    foreach (\glob(\base_path('app/Enums/*.php')) as $file) {
+    foreach (\arch_php_files(\base_path('app/Enums')) as $file) {
         $class = \pathinfo($file, \PATHINFO_FILENAME);
 
         \expect($class)->toEndWith('Enum');

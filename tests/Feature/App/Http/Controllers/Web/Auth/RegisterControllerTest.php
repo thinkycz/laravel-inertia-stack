@@ -38,7 +38,8 @@ use Thinkycz\LaravelCore\Support\Resolver;
         'locale' => 'en',
     ]);
 
-    $response->assertStatus(422);
+    $response->assertRedirect();
+    $response->assertSessionHasErrors();
     $this->assertDatabaseMissing('users', [
         'email' => 'new-user@example.com',
     ]);

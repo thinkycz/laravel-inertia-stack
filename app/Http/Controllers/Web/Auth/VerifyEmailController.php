@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Thinkycz\LaravelCore\Support\ThrottleSupport;
 
 class VerifyEmailController
 {
@@ -29,13 +30,10 @@ class VerifyEmailController
     {
         $user = User::mustAuth();
 
-        $clearThrottle = $this->hit($this->limit());
-
         if (!$user->hasVerifiedEmail()) {
+            ThrottleSupport::delivery('verification', $user->getEmail());
             $user->sendEmailVerificationNotification();
         }
-
-        $clearThrottle();
 
         Inertia::flash('success', \__('Verification email sent.'));
 

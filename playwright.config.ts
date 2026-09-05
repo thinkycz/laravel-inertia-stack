@@ -9,8 +9,9 @@ export default defineConfig({
     reporter: [['list'], ['html', { open: 'never' }]],
     timeout: 30000,
     use: {
-        baseURL: process.env.APP_URL ?? 'http://127.0.0.1:8000',
+        baseURL: 'http://127.0.0.1:18765',
         trace: 'on-first-retry',
+        serviceWorkers: 'block',
         screenshot: 'only-on-failure',
         actionTimeout: 10000,
         navigationTimeout: 15000,
@@ -22,17 +23,10 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command:
-            'php artisan optimize:clear && php artisan migrate:fresh --env=testing --force && php artisan serve --host=127.0.0.1 --port=8000',
-        url: 'http://127.0.0.1:8000',
-        reuseExistingServer: !process.env.CI,
+        command: 'node tests/e2e/support/server.mjs',
+        url: 'http://127.0.0.1:18765/login',
+        reuseExistingServer: false,
+        gracefulShutdown: { signal: 'SIGTERM', timeout: 10000 },
         timeout: 60000,
-        env: {
-            APP_ENV: 'testing',
-            CACHE_STORE: 'array',
-            SESSION_SECURE_COOKIE: 'false',
-            MAIL_MAILER: 'log',
-            E2E_DISABLE_THROTTLE: 'true',
-        },
     },
 });

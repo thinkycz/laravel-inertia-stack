@@ -23,6 +23,15 @@ describe('parseTextDeltaSseChunk', () => {
         expect(parsed.done).toBe(false);
     });
 
+    test('keeps text buffered before a tool activity flush', () => {
+        const parsed = parseTextDeltaSseChunk(
+            'data: {"id":4,"type":"tool_activity","tool_name":"AskClarifyingQuestionsTool","delta":"Let me clarify: "}\n\n',
+        );
+        expect(parsed.deltas).toEqual(['Let me clarify: ']);
+        expect(parsed.toolName).toBe('AskClarifyingQuestionsTool');
+        expect(parsed.lastEventId).toBe(4);
+    });
+
     test('detects done sentinel', () => {
         const parsed = parseTextDeltaSseChunk('data: [DONE]\n\n');
 
@@ -46,6 +55,24 @@ describe('parseTextDeltaSseChunk', () => {
         expect(parsed.deltas).toEqual(['Hi']);
         expect(parsed.lastEventId).toBe(13);
         expect(parsed.terminalType).toBe('run_completed');
+    });
+
+    test('preserves validated clarifications and terminal content snapshots', () => {
+        const clarification = {
+            question: 'Which?',
+            options: ['A', 'B'],
+            recommended_option: 'A',
+        };
+        const parsed = parseTextDeltaSseChunk(
+            `data: ${JSON.stringify({ id: 2, type: 'tool_activity', clarification })}\n\ndata: {"id":3,"type":"run_cancelled","assistant_content":"partial"}\n\n`,
+        );
+        expect(parsed.clarification).toEqual(clarification);
+        expect(parsed.assistantContent).toBe('partial');
+        expect(
+            parseTextDeltaSseChunk(
+                'data: {"type":"tool_activity","clarification":{"question":"Which?","options":[null]}}\n\n',
+            ).clarification,
+        ).toBeNull();
     });
 
     test('exposes run failure errors', () => {

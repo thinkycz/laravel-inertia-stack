@@ -6,7 +6,7 @@ Inertia-first Laravel 13 boilerplate with Vue 3, TypeScript, Tailwind, shadcn-vu
 
 ```sh
 composer install
-npm install
+npm ci
 cp .env.example .env
 php artisan key:generate
 php artisan migrate
@@ -20,7 +20,21 @@ npm run type-check
 npm run build
 composer test
 make check
+make e2e
 ```
+
+Pest boots with isolated in-memory SQLite configuration. Playwright creates its
+own temporary database, file sessions and fixed server with fake AI/mail
+providers. Neither suite may reset the current database. `make check` and
+`make e2e` are separate checks.
+
+Local chat uses the database queue; keep the worker started by `composer run dev`
+running. Deployed environments require both a Redis worker and Laravel scheduler.
+See [architecture](docs/architecture.md) for timeout and recovery contracts.
+
+Commit both lockfiles. Deployment builds frontend assets before pruning build
+dependencies and requires `public/build/manifest.json`. Test deployment commands
+only in a disposable checkout.
 
 ## Routes
 

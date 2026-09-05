@@ -35,10 +35,16 @@ class MeUpdateController extends AutomaticController
             throw new AuthenticationException();
         }
 
-        $user->update([
+        $user->fill([
             'email' => $validated->parseNullableString('email') ?? $user->getEmail(),
             'locale' => $validated->parseNullableString('locale') ?? $user->getLocale(),
         ]);
+
+        if ($user->isDirty('email')) {
+            $user->forceFill(['email_verified_at' => null]);
+        }
+
+        $user->save();
 
         return $user->meResource()->response();
     }

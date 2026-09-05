@@ -9,6 +9,7 @@ import type { AgentRunSnapshot } from '@/types';
 const props = defineProps<{
     run: AgentRunSnapshot | null;
     currentTool: string | null;
+    cancelling?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -82,17 +83,24 @@ async function onCancel(): Promise<void> {
                     v-if="currentTool !== null"
                     class="text-[11px] text-on-surface-variant truncate"
                 >
-                    {{ t('agent.tool_running', { tool: currentTool }) }}
+                    {{
+                        t('agent.tool_running', {
+                            tool: t('agent.clarification_tool'),
+                        })
+                    }}
                 </p>
             </div>
             <button
                 type="button"
                 :aria-label="t('agent.cancel_run')"
                 @click="onCancel"
+                :disabled="cancelling"
                 class="inline-flex h-7 items-center gap-1.5 rounded-lg border border-outline-glass bg-surface-container px-2.5 text-[11px] font-semibold text-on-surface-variant transition hover:border-error-red/40 hover:text-error-red cursor-pointer"
             >
                 <X :size="12" />
-                <span>{{ t('agent.cancel_run') }}</span>
+                <span>{{
+                    t(cancelling ? 'agent.cancelling' : 'agent.cancel_run')
+                }}</span>
             </button>
         </div>
 
@@ -109,7 +117,7 @@ async function onCancel(): Promise<void> {
                     v-if="props.run.error"
                     class="text-[11px] mt-0.5 opacity-90 break-words"
                 >
-                    {{ props.run.error }}
+                    {{ t(props.run.error) }}
                 </p>
             </div>
         </div>

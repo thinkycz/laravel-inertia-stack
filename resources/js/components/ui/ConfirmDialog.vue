@@ -1,19 +1,26 @@
 <script setup lang="ts">
+import { onScopeDispose, useId } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ModalOverlay from '@/components/ui/ModalOverlay.vue';
 import { useConfirmDialog } from '@/composables/useConfirmDialog';
 
 const { t } = useI18n();
+const titleId = useId();
 const { state, accept, dismiss } = useConfirmDialog();
+onScopeDispose(dismiss);
 </script>
 
 <template>
     <ModalOverlay
         :open="state.open"
+        :labelled-by="titleId"
         panel-class="max-w-sm space-y-3"
         @close="dismiss"
     >
-        <h3 class="font-heading text-sm font-bold text-on-surface">
+        <h3
+            :id="titleId"
+            class="font-heading text-sm font-bold text-on-surface"
+        >
             {{ state.title }}
         </h3>
         <p class="text-xs text-on-surface-variant">

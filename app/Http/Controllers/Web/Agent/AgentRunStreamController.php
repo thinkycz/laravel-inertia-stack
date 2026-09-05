@@ -12,6 +12,7 @@ use App\Models\User;
 use Generator;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Thinkycz\LaravelCore\Support\Resolver;
 
 class AgentRunStreamController
 {
@@ -24,9 +25,10 @@ class AgentRunStreamController
     /**
      * Replay stored run events and briefly wait for fresh ones.
      */
-    public function __invoke(Request $request, AgentRunService $runs): StreamedResponse
+    public function __invoke(Request $request): StreamedResponse
     {
         $user = User::mustAuth();
+        $runs = Resolver::resolve(AgentRunService::class);
 
         $validated = $this->validateRequest($request, [
             'run_id' => 'required|string',
@@ -40,7 +42,7 @@ class AgentRunStreamController
             $lastEventId = $afterEventId;
             $deadline = \microtime(true) + self::STREAM_SECONDS;
 
-            while ($deadline > \microtime(true)) {
+            while ($deadline > \microtime(true) && \connection_aborted() === 0) {
                 $events = AgentRunEvent::query()
                     ->where('run_id', $run->getId())
                     ->where('id', '>', $lastEventId)
@@ -54,7 +56,7 @@ class AgentRunStreamController
                 }
 
                 $freshRun = AgentRun::query()->where('id', $run->getId())->first();
-                if ($freshRun instanceof AgentRun && !$freshRun->isActive()) {
+                if (!$freshRun instanceof AgentRun || (!$freshRun->isActive() && $events->count() < 100)) {
                     break;
                 }
 
@@ -77,9 +79,9 @@ class AgentRunStreamController
     private function sseEvent(AgentRunEvent $event): string
     {
         return 'data: ' . \json_encode([
+            ...$event->getPayload(),
             'id' => $event->getId(),
             'type' => $event->getType(),
-            ...$event->getPayload(),
         ], \JSON_THROW_ON_ERROR) . "\n\n";
     }
 }

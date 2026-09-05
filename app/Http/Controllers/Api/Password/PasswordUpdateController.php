@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\Password;
 
 use App\Enums\GuardEnum;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Thinkycz\LaravelCore\Http\ApiFormRequest;
 use Thinkycz\LaravelCore\Models\BaseUser;
@@ -44,11 +45,13 @@ class PasswordUpdateController extends AutomaticController
                 ->throw();
         }
 
-        $user->update([
-            'password' => $validated->assertString('new_password'),
-        ]);
+        DB::transaction(function () use ($user, $validated): void {
+            $user->update([
+                'password' => $validated->assertString('new_password'),
+            ]);
 
-        $user->databaseTokens()->getQuery()->delete();
+            $user->databaseTokens()->getQuery()->delete();
+        });
 
         return Resolver::resolveResponseFactory()->noContent();
     }

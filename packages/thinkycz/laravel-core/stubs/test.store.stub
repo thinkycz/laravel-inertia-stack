@@ -9,20 +9,24 @@ use Database\Factories\{{ model }}Factory;
 use Database\Factories\UserFactory;
 use Thinkycz\LaravelCore\Support\Resolver;
 
-test('store {{ table }}', function (): void {
+\test('store {{ table }}', function (): void {
     $auth = UserFactory::new()->createOne();
-    expect($auth)->toBeInstanceOf(User::class);
+    \expect($auth)->toBeInstanceOf(User::class);
 
     $model = {{ model }}Factory::new()
         ->for($auth)
         ->makeOne();
-    expect($model)->toBeInstanceOf({{ model }}::class);
+    \expect($model)->toBeInstanceOf({{ model }}::class);
 
     $data = [
         'title' => $model->getTitle(),
     ];
 
-    $response = $this->be($auth)->post(Resolver::resolveUrlGenerator()->action({{ model }}StoreController::class), $data);
+    $response = $this->be($auth)->postJson(Resolver::resolveUrlGenerator()->action({{ model }}StoreController::class), $data);
 
-    $response->assertOk();
+    $response->assertCreated();
+});
+
+\test('guest cannot store {{ table }}', function (): void {
+    $this->postJson(Resolver::resolveUrlGenerator()->action({{ model }}StoreController::class))->assertUnauthorized();
 });

@@ -27,7 +27,8 @@ use Thinkycz\LaravelCore\Support\Typer;
         'token' => 'invalid-token',
     ]);
 
-    $response->assertStatus(422);
+    $response->assertRedirect();
+    $response->assertSessionHasErrors();
 });
 
 \test('unknown email is rejected', function (): void {
@@ -37,7 +38,8 @@ use Thinkycz\LaravelCore\Support\Typer;
         'token' => 'some-token',
     ]);
 
-    $response->assertStatus(422);
+    $response->assertRedirect();
+    $response->assertSessionHasErrors();
 });
 
 \test('valid token updates password and logs user in', function (): void {

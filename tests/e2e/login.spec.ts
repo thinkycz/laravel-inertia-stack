@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.describe('Full user journey', () => {
     test('user can register, view dashboard, update profile, and log out', async ({
@@ -14,9 +14,7 @@ test.describe('Full user journey', () => {
         await page.getByRole('button', { name: 'Register' }).click();
 
         await page.waitForURL(/\/dashboard/);
-        await expect(
-            page.getByRole('heading', { name: 'Dashboard' }),
-        ).toBeVisible();
+        await expect(page).toHaveTitle(/Dashboard/);
 
         await page.goto('/settings');
         const emailInput = page.getByLabel('Email');

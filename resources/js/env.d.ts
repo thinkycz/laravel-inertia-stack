@@ -9,7 +9,3 @@ declare module '*.vue' {
 
     export default component;
 }
-
-interface Window {
-    axios: import('axios').AxiosInstance;
-}

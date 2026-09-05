@@ -8,31 +8,38 @@ use {{ namespacedModel }};
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Resources\JsonApi\JsonApiResource;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Thinkycz\LaravelCore\Http\ApiFormRequest;
 use Thinkycz\LaravelCore\Routing\AutomaticController;
 use Thinkycz\LaravelCore\Support\Parser;
 use Thinkycz\LaravelCore\Support\Resolver;
 use Thinkycz\LaravelCore\Support\Typer;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class {{ class }} extends AutomaticController
 {
     /**
      * Take.
      */
-    public const TAKE = \PHP_INT_MAX;
+    public const int TAKE = 25;
+
+    /**
+     * Maximum page size.
+     */
+    public const int MAX_TAKE = 100;
 
     /**
      * Sort.
+     *
+     * @var list<string>
      */
-    public const SORT = ['id', '-id', 'created_at', '-created_at', 'updated_at', '-updated_at', 'title', '-title'];
+    public const array SORT = ['id', '-id', 'created_at', '-created_at', 'updated_at', '-updated_at', 'title', '-title'];
 
     /**
      * Mode.
      *
      * @var array<int, string>
      */
-    public const MODE = ['DEFAULT', 'COUNT'];
+    public const array MODE = ['DEFAULT', 'COUNT'];
 
     /**
      * Handle the incoming request.
@@ -189,7 +196,7 @@ class {{ class }} extends AutomaticController
             ->filterSlug()
             ->filterNotSlug()
             ->filterSearch()
-            ->take(static::TAKE)
+            ->take(static::MAX_TAKE)
             ->mode(static::MODE)
             ->sort(static::SORT)
             ->page()

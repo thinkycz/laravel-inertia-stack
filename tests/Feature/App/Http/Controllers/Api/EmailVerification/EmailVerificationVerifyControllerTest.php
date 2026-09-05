@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\EmailVerification\EmailVerificationVerifyController;
 use App\Models\User;
 use Database\Factories\UserFactory;
+use Thinkycz\LaravelCore\Notifications\EmailVerificationNotification;
 use Thinkycz\LaravelCore\Services\EmailBrokerService;
 use Thinkycz\LaravelCore\Support\Resolver;
 
@@ -92,4 +93,21 @@ use Thinkycz\LaravelCore\Support\Resolver;
     $response->assertUnprocessable();
 
     $response->assertJsonValidationErrors(['token']);
+});
+
+\test('fixed verification token is never accepted and real token is consumed', function (): void {
+    $user = UserFactory::new()->createOne();
+    $user->markEmailAsUnverified();
+    $broker = EmailBrokerService::inject();
+    \expect($broker->validate('users', $user->getEmail(), '111111'))->toBeFalse();
+    $token = $broker->store('users', $user->getEmail());
+    $this->postJson('/api/v1/email_verification/verify', ['email' => $user->getEmail(), 'token' => $token])->assertNoContent();
+    \expect($broker->validate('users', $user->getEmail(), $token))->toBeFalse();
+    \expect($user->refresh()->hasVerifiedEmail())->toBeTrue();
+});
+
+\test('verification mail contains an absolute application link', function (): void {
+    $mail = EmailVerificationNotification::inject('users', 'token', 'mail@example.com')
+        ->locale('en')->toMail(null);
+    \expect($mail->actionUrl)->toStartWith(Resolver::resolveUrlGenerator()->to('/email/verify') . '?');
 });

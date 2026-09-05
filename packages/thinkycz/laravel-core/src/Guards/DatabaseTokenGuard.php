@@ -38,7 +38,7 @@ class DatabaseTokenGuard implements GuardContract
     {
         $env = Config::inject()->appEnv();
 
-        return ($env === 'local' ? '' : '__Host-') . Str::slug(Config::inject()->assertString('app.name') . '_' . $env . "_database_token_{$this->guardName}", '_');
+        return (\in_array($env, ['local', 'testing'], true) ? '' : '__Host-') . Str::slug(Config::inject()->assertString('app.name') . '_' . $env . "_database_token_{$this->guardName}", '_');
     }
 
     /**
@@ -154,7 +154,7 @@ class DatabaseTokenGuard implements GuardContract
      */
     public function cookieSecure(): bool
     {
-        return !Config::inject()->appEnvIs(['local']);
+        return !Config::inject()->appEnvIs(['local', 'testing']);
     }
 
     /**
@@ -162,11 +162,7 @@ class DatabaseTokenGuard implements GuardContract
      */
     public function cookieSameSite(): string
     {
-        if (!$this->cookieSecure()) {
-            return 'Lax';
-        }
-
-        return Config::inject()->appEnvIs(['production']) ? 'Lax' : 'None';
+        return 'Lax';
     }
 
     /**

@@ -16,15 +16,13 @@ class ValidationException extends IlluminateValidationException
      *
      * @param array<mixed> $headers
      * @param array<mixed> $data
-     *
-     * @phpstan-ignore-next-line
      */
     public function __construct(Validator $validator, int $statusCode = 422, string $message = '', Throwable|null $previous = null, public array $headers = [], int $code = 0, public array $data = [])
     {
-        $this->validator = $validator;
+        parent::__construct($validator);
         $this->response = null;
         $this->status = $statusCode;
-        $this->errorBag = '';
+        $this->errorBag = 'default';
 
         Exception::__construct($message, $code, $previous);
     }

@@ -44,41 +44,32 @@ fix: ./node_modules/.bin/prettier ./vendor/bin/pint
 	${MAKE_PHP} ./vendor/bin/pint
 
 .PHONY: test
-test: ./vendor/bin/pest ./.env
-	${MAKE_ARTISAN} optimize:clear
-	${MAKE_ARTISAN} cache:clear
-	${MAKE_ARTISAN} config:clear
-	${MAKE_ARTISAN} event:clear
-	${MAKE_ARTISAN} route:clear
-	${MAKE_ARTISAN} view:clear
-	${MAKE_ARTISAN} clear-compiled
-	APP_ENV=testing ${MAKE_PHP} ./vendor/bin/pest --no-coverage
+test: ./vendor/bin/pest
+	${MAKE_PHP} ./vendor/bin/pest --no-coverage
 
 .PHONY: e2e
-e2e: ./node_modules/.bin/playwright ./.env
+e2e: frontend ./node_modules/.bin/playwright
 	./node_modules/.bin/playwright test
 
+.PHONY: test-integration
+test-integration:
+	node tests/Integration/run.mjs
+
 .PHONY: test-coverage
-test-coverage: ./vendor/bin/phpunit ./.env
-	${MAKE_ARTISAN} optimize:clear
-	${MAKE_ARTISAN} cache:clear
-	${MAKE_ARTISAN} config:clear
+test-coverage: ./vendor/bin/phpunit
 	@mkdir -p build/coverage
-	XDEBUG_MODE=coverage php -dxdebug.mode=coverage ./vendor/bin/phpunit --coverage-text --coverage-clover=build/coverage/clover.xml --coverage-html=build/coverage/html
-	@echo "Coverage report: build/coverage/html/index.html"
+	XDEBUG_MODE=coverage ${MAKE_PHP} ./vendor/bin/phpunit --coverage-text --coverage-clover=build/coverage/clover.xml --coverage-html=build/coverage/html
 
 .PHONY: clean
 clean:
 	rm -rf ./node_modules
-	rm -rf ./package-lock.json
 	rm -rf ./vendor
-	rm -rf ./composer.lock
 
 # Deploy / Release
 .PHONY: local
 local: ./.env
 	${MAKE_COMPOSER} install
-	npm install --include dev --install-links
+	npm ci --include=dev
 	${MAKE_ARTISAN} optimize:clear
 	${MAKE_ARTISAN} cache:clear
 	${MAKE_ARTISAN} config:clear
@@ -98,7 +89,7 @@ testing: local
 .PHONY: development
 development: ./.env
 	${MAKE_COMPOSER} install
-	npm install --install-links
+	npm ci --include=dev
 	${MAKE_ARTISAN} optimize:clear
 	${MAKE_ARTISAN} cache:clear
 	${MAKE_ARTISAN} config:clear
@@ -108,8 +99,10 @@ development: ./.env
 	${MAKE_ARTISAN} clear-compiled
 	${MAKE_ARTISAN} migrate --force
 	${MAKE_ARTISAN} db:seed --force
+	npm run build
+	test -f public/build/manifest.json
 	${MAKE_COMPOSER} install -a --no-dev
-	npm install --omit dev --install-links
+	npm prune --omit=dev
 	${MAKE_ARTISAN} optimize
 	${MAKE_ARTISAN} config:cache
 	${MAKE_ARTISAN} event:cache
@@ -134,4 +127,4 @@ serve: ./vendor ./.env
 	${MAKE_COMPOSER} install
 
 ./node_modules ./package-lock.json ./node_modules/.bin/prettier ./node_modules/.bin/playwright:
-	npm install --include dev --install-links
+	npm ci --include=dev

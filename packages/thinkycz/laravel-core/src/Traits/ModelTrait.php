@@ -589,7 +589,7 @@ trait ModelTrait
      * Scope has.
      *
      * @param Builder<static> $builder
-     * @param ?Closure(Builder<static>): void $closure
+     * @param ?Closure(Builder<Model>): void $closure
      */
     public static function scopeHas(Builder $builder, string $relation, Closure|null $closure = null, string $operator = '>=', int $count = 1): void
     {
@@ -600,7 +600,7 @@ trait ModelTrait
      * Scope not has.
      *
      * @param Builder<static> $builder
-     * @param ?Closure(Builder<static>): void $closure
+     * @param ?Closure(Builder<Model>): void $closure
      */
     public static function scopeNotHas(Builder $builder, string $relation, Closure|null $closure = null): void
     {
@@ -612,7 +612,7 @@ trait ModelTrait
      *
      * @param Builder<static> $builder
      * @param array<mixed> $values
-     * @param ?Closure(Builder<static>): void $closure
+     * @param ?Closure(Builder<Model>): void $closure
      */
     public static function scopeHasId(Builder $builder, string $relation, array $values, Closure|null $closure = null, string $operator = '>=', int $count = 1): void
     {
@@ -622,7 +622,6 @@ trait ModelTrait
                 $builder->whereKey($values);
 
                 if ($closure !== null) {
-                    // @phpstan-ignore-next-line
                     $closure($builder);
                 }
             },
@@ -636,7 +635,7 @@ trait ModelTrait
      *
      * @param Builder<static> $builder
      * @param array<mixed> $values
-     * @param ?Closure(Builder<static>): void $closure
+     * @param ?Closure(Builder<Model>): void $closure
      */
     public static function scopeNotHasId(Builder $builder, string $relation, array $values, Closure|null $closure = null): void
     {
@@ -644,7 +643,6 @@ trait ModelTrait
             $builder->whereKey($values);
 
             if ($closure !== null) {
-                // @phpstan-ignore-next-line
                 $closure($builder);
             }
         });

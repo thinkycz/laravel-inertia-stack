@@ -16,7 +16,6 @@ import FlashAlerts from '@/components/ui/FlashAlerts.vue';
 import { useBoundLocale } from '@/composables/useBoundLocale';
 import { useConfirmDialog } from '@/composables/useConfirmDialog';
 import { useSharedProps } from '@/composables/useSharedProps';
-import { useActiveConversation } from '@/composables/useActiveConversation';
 
 defineProps<{
     title: string;
@@ -24,15 +23,12 @@ defineProps<{
 
 const { auth, conversations, activeUrl } = useSharedProps();
 const { t } = useI18n();
-const { pendingConversationId } = useActiveConversation();
+const confirmDialog = useConfirmDialog();
 const mobileHistoryOpen = ref(false);
 
 useBoundLocale();
 
 const activeConversationId = computed(() => {
-    // While a new conversation is streaming, use the pending ID so the sidebar
-    // item is highlighted immediately without needing a router navigation.
-    if (pendingConversationId.value) return pendingConversationId.value;
     const match = activeUrl.value.match(/^\/conversations\/([a-zA-Z0-9-]+)/);
     return match ? match[1] : null;
 });
@@ -61,8 +57,6 @@ function logout(): void {
 }
 
 async function deleteConversation(id: string): Promise<void> {
-    const confirmDialog = useConfirmDialog();
-
     if (await confirmDialog.confirm(t('conversations.delete_confirm'))) {
         router.delete(`/conversations/${id}`);
     }
@@ -151,8 +145,9 @@ function closeMobileHistory(): void {
                             </Link>
                             <button
                                 @click.stop="deleteConversation(chat.id)"
-                                class="absolute right-2 hidden cursor-pointer rounded-lg p-1 text-on-surface-variant hover:bg-error-red/10 hover:text-error-red group-hover:block"
+                                class="absolute right-2 opacity-0 cursor-pointer rounded-lg p-1 text-on-surface-variant hover:bg-error-red/10 hover:text-error-red group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
                                 :title="t('nav.delete_chat')"
+                                :aria-label="t('nav.delete_chat')"
                             >
                                 <Trash2 :size="12" />
                             </button>
@@ -311,6 +306,7 @@ function closeMobileHistory(): void {
                         @click.stop="deleteConversation(chat.id)"
                         class="absolute right-2 cursor-pointer rounded-lg p-1 text-on-surface-variant hover:bg-error-red/10 hover:text-error-red"
                         :title="t('nav.delete_chat')"
+                        :aria-label="t('nav.delete_chat')"
                     >
                         <Trash2 :size="12" />
                     </button>

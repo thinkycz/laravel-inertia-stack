@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace {{ namespace }};
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Thinkycz\LaravelCore\Models\BaseModel;
-use Thinkycz\LaravelCore\Support\Config;
+use Thinkycz\LaravelCore\Support\Resolver;
 
 class {{ class }} extends BaseModel
 {
@@ -28,7 +29,7 @@ class {{ class }} extends BaseModel
      */
     public static function scopeSearch(Builder $builder, string $search): void
     {
-        if (Config::inject()->appEnvIs(['testing'])) {
+        if (Resolver::resolveDatabaseManager()->connection()->getDriverName() === 'sqlite') {
             $builder->getQuery()->where($builder->qualifyColumn('title'), $search);
         } else {
             $builder->getQuery()->whereFullText($builder->qualifyColumn('title'), $search);

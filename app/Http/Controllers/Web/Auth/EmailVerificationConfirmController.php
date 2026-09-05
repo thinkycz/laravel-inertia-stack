@@ -68,17 +68,20 @@ class EmailVerificationConfirmController
             return $this->redirectAfterConfirm($user, \__('Email already verified.'));
         }
 
-        $tokenValid = EmailBrokerService::inject()->validate($guard, $email, $token);
+        $confirmed = DB::transaction(static function () use ($user, $guard, $email, $token): bool {
+            $current = User::query()->whereKey($user->getKey())->where('email', $email)->lockForUpdate()->first();
+            if ($current === null || !EmailBrokerService::inject()->validate($guard, $email, $token)) {
+                return false;
+            }
+            $current->markEmailAsVerified();
+            EmailBrokerService::inject()->confirm($guard, $email);
 
-        if ($tokenValid === false) {
+            return true;
+        });
+        if (!$confirmed) {
             return $this->redirectWithError('/login', \__('The verification link is invalid or has expired.'));
         }
-
-        DB::transaction(static function () use ($user, $guard, $email): void {
-            $user->markEmailAsVerified();
-
-            EmailBrokerService::inject()->confirm($guard, $email);
-        });
+        $user->refresh();
 
         Resolver::resolveEventDispatcher()->dispatch(new Verified($user));
 

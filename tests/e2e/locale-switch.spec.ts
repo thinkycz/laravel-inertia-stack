@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.describe('Locale switcher', () => {
     test.beforeEach(async ({ page }) => {
@@ -15,9 +15,7 @@ test.describe('Locale switcher', () => {
     test('switching the locale flips the nav and heading strings', async ({
         page,
     }) => {
-        await expect(
-            page.getByRole('heading', { name: 'Dashboard' }),
-        ).toBeVisible();
+        await expect(page).toHaveTitle(/Dashboard/);
         await expect(
             page.getByRole('button', { name: 'Log out' }),
         ).toBeVisible();

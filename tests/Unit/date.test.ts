@@ -19,10 +19,10 @@ describe('date formatting', () => {
 
     test('formats date ranges in the user locale', () => {
         expect(formatDateRange('2026-06-01', '2026-06-30', 'cs')).toBe(
-            '1. 6. 2026 - 30. 6. 2026',
+            '1. 6. 2026 – 30. 6. 2026',
         );
         expect(formatDateRange('2026-06-01', '2026-06-30', 'en')).toBe(
-            '6/1/2026 - 6/30/2026',
+            '6/1/2026 – 6/30/2026',
         );
     });
 

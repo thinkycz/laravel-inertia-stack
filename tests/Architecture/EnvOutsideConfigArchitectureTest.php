@@ -2,22 +2,7 @@
 
 declare(strict_types=1);
 
-/**
- * Recursively iterate every .php file under a directory.
- *
- * @return iterable<string>
- */
-function env_arch_php_files(string $dir): iterable
-{
-    $rii = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
-
-    foreach ($rii as $file) {
-        /** @var SplFileInfo $file */
-        if ($file->isFile() && $file->getExtension() === 'php') {
-            yield $file->getPathname();
-        }
-    }
-}
+require_once __DIR__ . '/Helpers.php';
 
 /**
  * Real-path-prefix check, with empty-string guards.
@@ -110,7 +95,7 @@ function env_arch_resolve_paths(array $paths): array
 
     $violations = [];
 
-    foreach (\env_arch_php_files(\base_path()) as $file) {
+    foreach (\arch_php_files(\base_path()) as $file) {
         if (\env_arch_path_starts_with($file, $skipDirRealPaths)) {
             continue;
         }

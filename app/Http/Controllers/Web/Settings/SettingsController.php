@@ -41,10 +41,16 @@ class SettingsController
             'locale' => $authValidity->locale()->required()->toArray(),
         ]);
 
-        $user->update([
+        $user->fill([
             'email' => $validated->assertString('email'),
             'locale' => $validated->assertString('locale'),
         ]);
+
+        if ($user->isDirty('email')) {
+            $user->forceFill(['email_verified_at' => null]);
+        }
+
+        $user->save();
 
         Inertia::flash('success', \__('Profile updated.'));
 

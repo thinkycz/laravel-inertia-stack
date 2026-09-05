@@ -119,15 +119,16 @@ $message)` helper asserts Inertia flash messages for both
   `<a href>`. Internal links that need button styling should be a
   `<Link>` whose content is a `<Button>`-styled element, or
   `as="button"` where supported.
-- Use `router.get/post/...` for all form submissions and searches;
-  never `window.location.href`. Preserve state on search/filter
-  navigation with `router.get(url, params, { preserveState: true })`.
+- Use Inertia `<Form>` for ordinary forms. Use `router.get(...)` for
+  searches and explicit navigation, preserving state where appropriate.
+  Never navigate by assigning `window.location.href`.
 - Use `Inertia::flash('success', \__('...'))` for success flashes; the
   `HandleInertiaRequests` middleware also falls back to session
   `->flash()`, but `Inertia::flash()` survives 302 chains.
-- For form submits, bind `@submit.prevent` and call
-  `router.post(...)`; do not set redundant `method`/`action`
-  attributes on the `<form>` element.
+- `<Form>` owns submission, processing and validation state; provide its
+  `action` and `method` props. Custom native forms need `@submit.prevent`
+  and an explicit router call. Standard Laravel redirects and session
+  errors are canonical; do not map request paths to Inertia components.
 - Inertia pages live in `resources/js/pages/` and are resolved by
   `resources/js/app.ts`. Use `@/` for `resources/js` imports.
 - Inertia v3 stores flash data on the dedicated
@@ -294,3 +295,50 @@ $user)`) or Eloquent relationship methods that take the user as
 
 - Generate boilerplate code exclusively with CRUD scaffolding commands
   shipped by the `thinkycz/laravel-core` package.
+
+## Authentication and AI execution contracts
+
+- Share cookie encryption and sessions across web/API. Cookie-authenticated
+  mutations, including login/registration, require CSRF protection. Initialize
+  API cookies via `GET /api/v1/auth/csrf`; exempt only valid explicit bearer
+  authentication. CORS uses an explicit trusted-origin list, never wildcard
+  credentialed access. Secure host-only cookies outside local/testing must
+  satisfy `__Host-` attributes.
+- Send password-reset links, never raw passwords. Reset requests leave credentials
+  unchanged; completion atomically consumes the token and revokes account tokens.
+  Email changes clear verification; successful verification consumes its token.
+- Keep failed-login budgets separate from operation quotas. Count validated
+  successful AI starts (30/minute/user). Limit reset/verification delivery to
+  one message/minute/address and a separate IP abuse budget.
+- Application code owns conversation persistence. Do not add SDK remembering
+  beside repository writes. Link run messages, bound prior completed context to
+  100 messages, and append the new prompt once.
+- Guard queued-to-running and terminal transitions atomically. One nullable
+  unique active-conversation key prevents concurrent active runs. Duplicate
+  delivery does not execute providers again; provider calls stay outside DB
+  transactions. Deletion must prevent subsequent worker writes.
+- Use database queues locally and Redis in deployed environments. Keep provider,
+  worker and visibility timeouts at 90/120/180 seconds, respectively, with one
+  provider attempt and scheduled stale-run reconciliation.
+- Keep run content, cursor and events transactionally consistent. Buffer text
+  writes and bound replay/context rather than introducing unbounded collections.
+- Clarifications terminate the current run; selection or typing starts a new
+  turn. Persist selection and keep server status distinct from connection state.
+- Generated CRUD lookups scope ownership before fetching. Pagination defaults to
+  25 with a maximum of 100. Validate generated source and behavior in a disposable
+  application; never generate test fixtures into the working application's code.
+
+## Safe verification and reproducible installs
+
+- Commit Composer and npm lockfiles. Use `composer install` and `npm ci` for
+  reproducible installs; dependency updates must deliberately refresh lockfiles.
+- Select isolated testing configuration before bootstrap. Never clear developer
+  application caches as a test prerequisite or run `migrate:fresh` against the
+  current environment. Browser tests own a temporary database/server and fake
+  providers; do not substitute an arbitrary already-running server.
+- Build assets before pruning build dependencies and require the Vite manifest.
+  Verify deployment sequences only in disposable checkouts.
+- Keep PHPStan at max with types certain. Correct callback/model contracts or
+  use precise runtime assertions; no baseline, broad ignores or suppressions.
+- Run targeted tests during changes, then `make fix`, `make check` and `make e2e`
+  for integration. Report separate MySQL/Redis and live-provider/deployment gaps.

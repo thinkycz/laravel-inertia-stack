@@ -13,7 +13,6 @@ use Illuminate\Notifications\Notifiable;
 use Thinkycz\LaravelCore\Exceptions\GenericHttpException;
 use Thinkycz\LaravelCore\Notifications\EmailVerificationNotification;
 use Thinkycz\LaravelCore\Notifications\PasswordInitNotification;
-use Thinkycz\LaravelCore\Notifications\PasswordNewPasswordSettedNotification;
 use Thinkycz\LaravelCore\Notifications\PasswordResetNotification;
 use Thinkycz\LaravelCore\Services\EmailBrokerService;
 use Thinkycz\LaravelCore\Support\Resolver;
@@ -89,18 +88,6 @@ class BaseUser extends IlluminateUser implements HasLocalePreferenceContract
         }
 
         throw GenericHttpException::mustBeGuest();
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function sendPasswordNewPasswordSettedNotification(string $password): void
-    {
-        if ($this->getEmailForPasswordReset() === '') {
-            return;
-        }
-
-        $this->notify(PasswordNewPasswordSettedNotification::inject($password)->locale($this->preferredLocale()));
     }
 
     /**

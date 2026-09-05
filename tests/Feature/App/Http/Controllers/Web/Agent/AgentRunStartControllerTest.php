@@ -81,3 +81,17 @@ use Thinkycz\LaravelCore\Support\Typer;
     $second->assertJsonPath('conversation_id', $conversationId);
     $second->assertJsonPath('status', AgentRun::STATUS_RUNNING);
 });
+
+\test('successful starts consume the thirty per-user quota while invalid requests do not', function (): void {
+    Queue::fake();
+    $user = UserFactory::new()->createOne();
+    $this->be($user, 'users');
+    for ($attempt = 0; $attempt < 32; ++$attempt) {
+        $this->postJson('/agent/runs', ['prompt' => ''])->assertUnprocessable();
+    }
+    for ($attempt = 0; $attempt < 30; ++$attempt) {
+        $this->postJson('/agent/runs', ['prompt' => 'Valid prompt'])->assertOk();
+    }
+    $this->postJson('/agent/runs', ['prompt' => 'Over budget'])->assertStatus(429);
+    $this->assertDatabaseCount('agent_runs', 30);
+});

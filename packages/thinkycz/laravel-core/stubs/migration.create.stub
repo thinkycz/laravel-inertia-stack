@@ -21,7 +21,11 @@ return new class extends Migration {
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-            $table->string('title')->fulltext();
+            $table->string('title');
+
+            if (Resolver::resolveDatabaseManager()->connection()->getDriverName() !== 'sqlite') {
+                $table->fullText('title');
+            }
 
             $table->timestamp('created_at');
             $table->timestamp('updated_at');

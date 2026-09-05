@@ -1,152 +1,128 @@
 # Architecture
 
-## High-level
+## Application boundary
 
-This project is a Laravel 13 + Inertia 3 + Vue 3 single-tenant starter. The
-backend ships with two HTTP surfaces and one framework helper package; the
-frontend is a Vite-built Vue 3 app that consumes Inertia pages from the
-backend.
+Laravel 13, Inertia 3, Vue 3, TypeScript, Tailwind 4 and Vite form a reusable
+starter kit. Web pages and the minimal JSON API share the local
+`packages/thinkycz/laravel-core` helpers. SSR, the old catalog/order domain and
+OpenAPI demo generation remain deliberately deferred.
 
-```mermaid
-flowchart LR
-    Browser -->|HTTP| Laravel
-    subgraph Laravel
-      Web[Web routes<br/>app/Http/Controllers/Web]
-      Api[Api routes<br/>app/Http/Controllers/Api]
-      Core[packages/thinkycz/laravel-core]
-      Web --> Core
-      Api --> Core
-    end
-    Laravel -->|Inertia JSON| Browser
-    Browser -->|Vite assets| Vite
-    Vite -->|bundles| Browser
-```
+## Authentication and validation
 
-## Middleware chain (web)
+Both HTTP surfaces use encrypted database-token cookies, queued cookies and
+Laravel sessions. Cookies are HTTP-only, host-only and SameSite Lax; outside
+local/testing, secure cookies use compatible `__Host-` attributes. An existing
+explicit bearer token remains supported. Logout revokes the current token;
+password reset completion revokes all account tokens. Automatic token expiry
+remains deferred; tokens do not acquire expiry merely because a cookie expires.
 
-```mermaid
-flowchart TD
-    Req[Request] --> TrustProxies
-    TrustProxies --> EncryptCookies
-    EncryptCookies --> AddQueuedCookies
-    AddQueuedCookies --> StartSession
-    StartSession --> ShareErrorsFromSession
-    ShareErrorsFromSession --> VerifyCsrfToken
-    VerifyCsrfToken --> SubstituteBindings
-    SubstituteBindings --> AuthShouldUse[AuthShouldUseMiddleware]
-    AuthShouldUse --> SetPreferredLanguage[SetPreferredLanguageMiddleware]
-    SetPreferredLanguage --> InertiaShare[HandleInertiaRequests]
-    InertiaShare --> GuestOrAuth{guest:users?}
-    GuestOrAuth -->|guest| Controller
-    GuestOrAuth -->|auth| Redirect
-    Controller --> Resp[Inertia Response]
-```
+Cookie API clients first call `GET /api/v1/auth/csrf` (204) to initialize session
+and CSRF cookies, then include the decoded XSRF token with mutations. Login and
+registration also require request-forgery protection. Only a successfully
+authenticated explicit bearer token qualifies for exemption. CORS defaults to
+same-origin access; `TRUSTED_ORIGINS` supplies an explicit comma-separated list
+when cross-origin browser access is required. It does not disable CSRF checks.
 
-`AuthShouldUseMiddleware` and `SetPreferredLanguageMiddleware` come from
-`packages/thinkycz/laravel-core`. `HandleInertiaRequests` (in
-`app/Http/Middleware/`) extends Inertia's base middleware to share `app`,
-`auth`, `flash`, and inherited `errors`.
+Inertia `<Form>` is the canonical form component. Validation follows Laravel's
+redirect-and-session flow: validation failure redirects to the previous page,
+Inertia shares session errors, and `<Form>` displays its errors. There is no
+path-to-component mapping or custom Inertia 422 page response. JSON API clients
+continue to receive structured validation errors with status 422.
 
-## Validation-error flow (Inertia v3)
+Password recovery sends reset links only. Requesting a link does not change the
+password or revoke tokens. Completing recovery validates and consumes the reset
+token and atomically changes the password and revokes authentication tokens.
+Changing an email address clears verification; leaving it unchanged preserves
+verification. Successful email-verification tokens are consumed. Notifications
+are queued after transaction commit.
+
+## AI persistence and lifecycle
+
+Application repositories/services own conversation persistence. `ChatAgent`
+receives explicit conversational context and does not use SDK automatic
+remembering. A start transaction creates one submitted user message, one
+assistant placeholder and one run. Provider context includes at most the latest
+100 completed prior messages; the current prompt is appended once.
 
 ```mermaid
-sequenceDiagram
-    participant FE as Vue page
-    participant L as Laravel
-    participant H as Exception handler
-    participant IM as Inertia middleware
-
-    FE->>L: POST /login (X-Inertia: true)
-    L->>H: throws ValidationException
-    H->>L: Inertia::render(prev component, {errors})<br/>status 422
-    L-->>FE: 422 + page JSON (errors in props)
-    FE->>FE: useForm onError() → form.setError(errors)
-    FE-->>User: FieldError renders
+stateDiagram-v2
+    [*] --> queued
+    queued --> running: atomic claim
+    queued --> failed: dispatch failure or reconciliation
+    queued --> cancelled: cancellation
+    running --> completed: guarded completion
+    running --> failed: provider failure or reconciliation
+    running --> cancelled: cancellation
+    completed --> [*]
+    failed --> [*]
+    cancelled --> [*]
 ```
 
-Inertia v3 does **not** auto-follow a bare 302 redirect on POST. The handler
-in `bootstrap/app.php` therefore re-renders the previous Inertia component
-with status 422 and the `errors` prop, so the Vue client merges errors into
-the page and populates `useForm().errors`.
+A nullable unique active-conversation key permits one active run per conversation.
+Claim and terminal transitions are guarded; duplicate delivery cannot invoke the
+provider again. Completion and cancellation compete through the same guard, so
+terminal states never change again. Provider calls execute outside database
+transactions. User and conversation context are passed explicitly, without
+mutating a global authentication guard.
 
-## Authentication
+Message content, run cursor and replay events are persisted together. Text is
+buffered until the next delta after 100 ms, 4 KiB, or termination. Snapshots read
+consistent content and cursor values. Replay batches are bounded. Tool results,
+usage metadata and partial failed/cancelled responses survive refresh. Errors
+exposed to clients are safe translated codes/messages; diagnostics stay in
+server reporting.
 
-```mermaid
-flowchart LR
-    subgraph Login
-      C[LoginController::store] --> H[Resolver::resolveHasher]
-      C --> DT[DatabaseTokenGuard]
-    end
-    DT -->|set cookie| Browser
-    Browser -->|subsequent requests| MW[EnsureInertiaUserIsAuthenticated<br/>or guest:users]
-    MW --> Controller
-```
+User, conversation, message, run and event relationships cascade on deletion.
+Workers guard writes against deletion and terminal transitions. An unknown or
+foreign conversation ID fails rather than creating a replacement conversation.
 
-- Cookie is HTTP-only and named via the `database_token` config.
-- The guard stores `(user_id, token_hash)` in the `database_tokens`
-  table. **Tokens are permanent until the user explicitly logs out** —
-  there is no `expires_at` column and the guard does not perform
-  sliding-expiry rotation. Adding real expiry is a deliberate deferred
-  hardening item; see the `database_tokens` migration.
-- `LogoutController::destroy` revokes **only the current** token row
-  via `Resolver::resolveDatabaseTokenGuard('users')->logout()` before
-  invalidating the session. Other devices stay signed in.
+## Queue and recovery
 
-## Frontend layout
+Local asynchronous execution uses the database queue; deployed environments use
+Redis. PHP unit/feature tests normally use a synchronous fake queue, while browser
+lifecycle tests run a real worker against an isolated database queue with fake
+providers. Provider timeout is 90 seconds, worker timeout 120 seconds and retry
+visibility 180 seconds. Provider execution has one automatic attempt; a user
+retry creates a new run.
 
-```
-resources/js/
-├── app.ts                  # Inertia app bootstrap
-├── components/
-│   └── ui/                 # FieldError, FlashAlerts, Select, Input, Button, Alert, Brand
-├── composables/
-│   ├── useActiveConversation.ts
-│   ├── useBoundLocale.ts
-│   ├── useFieldError.ts
-│   └── useSharedProps.ts
-├── i18n/                   # en, cs, sk JSON plus a `createAppI18n` helper
-├── layouts/
-│   ├── AppLayout.vue       # authenticated shell
-│   └── AuthLayout.vue      # guest shell
-├── lib/                    # framework-agnostic helpers
-├── pages/                  # Inertia page components
-└── types/
-    └── index.ts            # AuthUser, AppMeta, FlashProps, ChatMessage, ChatConversation, SharedProps
-```
+The scheduler dispatches a reconciliation job for queued runs older than five
+minutes and running runs older than 150 seconds. It uses guarded failure
+transitions. A worker alone does not replace the scheduler: both must run for
+recovery after process termination.
 
-Pages import shared props via `useSharedProps()` and render them with the
-`ui/` primitives. Forms use `@inertiajs/vue3`'s `<Form>` for typed
-client-side state; validation errors arrive via page props after the 422
-handshake above. Each form input is wired to its error message via
-`fieldError(errors, field, formId)`, which produces
-`aria-describedby`/`aria-invalid` props for accessibility.
+## Browser state
 
-## Local packages
+The shared `active_run` snapshot identifies its conversation and assistant
+message and carries server status, content, cursor and safe error information.
+The returned conversation ID becomes canonical immediately. Navigation follows
+that ID; obsolete stream subscriptions are aborted and ignored. Streaming
+snapshots update the existing assistant placeholder.
 
-- `packages/thinkycz/laravel-core/` — the framework helper. Provides
-  `Resolver`, `Config`, `Env`, `Typer`, `AuthTiming`, `AuthValidity`,
-  `Thrower`, `Parser`, `DatabaseToken`, `EmailBrokerService`,
-  `AuthShouldUseMiddleware`, `SetPreferredLanguageMiddleware`, and the
-  `Illuminate\Contracts\Debug\ExceptionHandler` binding.
+Connection state is separate from server run status. Reconnection exhaustion
+allows retry, and cancellation remains pending until acknowledged. Clarification
+payloads are persisted and rendered with `ClarificationCard`; a selection starts
+a normal next turn in the same conversation and is recorded to prevent duplicate
+selection after refresh. Typed answers remain valid next turns.
 
-App-level code should not re-implement what core already exposes. Use core
-helpers before introducing new ones.
+Dialogs provide naming, focus trapping/restoration, Escape dismissal and blocked
+background interaction. Enter sends a prompt; Shift+Enter inserts a newline;
+IME composition does not submit. User-facing states stay synchronized in en/cs/sk.
 
-## Storage
+## Verification boundary
 
-- Sessions: `file` under `local`, `array` under `testing`, `redis`
-  under `development`/`staging`/`production` (see
-  `config/session.php`). E2e dev server runs with
-  `SESSION_SECURE_COOKIE=false` and `APP_ENV=testing`.
-- Cache: `array` in tests, `file` in dev, `redis` in
-  `development`/`staging`/`production` (per `config/cache.php`).
-- Database: MySQL 8 in production; SQLite `:memory:` in tests.
+Pest selects its isolated configuration before application bootstrap and does not
+clear developer caches. Playwright owns a temporary SQLite database, file-backed
+sessions and fixed test server; it cannot reuse the developer's server. AI/mail
+providers are fake and external requests are blocked. Cleanup removes only
+artifacts owned by that test run.
 
-## Runtime services
+Generator contracts create a disposable complete CRUD slice, analyze generated
+code with the project's strict PHPStan configuration, and exercise ownership and
+pagination. Architecture scans are recursive; they complement behavioral tests
+and do not establish universal ownership or concurrency correctness.
 
-MySQL 8, Redis, cron, and supervisor are the production runtime services
-declared in `composer.json` / `docker-compose.yml` (when present).
-
-## Internationalization (i18n)
-
-The backend (`lang/*.json`) and frontend (`resources/js/i18n/*.json`) translation files are separate but mirrored. This duplication is a deliberate design tradeoff to keep the frontend independent of API calls for localizing core UI shells during bootstrap. In the long term, they can be consolidated by either exposing a backend localization API endpoint or generating the client JSON files from the server JSON files during a build step.
+`make check` covers static analysis, formatting, audits, build, Vitest and Pest.
+`make e2e` runs the isolated browser suite separately. MySQL uniqueness, foreign
+keys and concurrent transitions, Redis recovery and deployment sequencing need
+specific disposable-environment verification. Passing local tests is not
+production certification or evidence of live provider behavior.

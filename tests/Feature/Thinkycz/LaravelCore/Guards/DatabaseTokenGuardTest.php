@@ -37,6 +37,6 @@ use Thinkycz\LaravelCore\Support\Resolver;
     \expect($cookie)->not->toBeNull();
     \expect($cookie->getName())->toStartWith('__Host-');
     \expect($cookie->isSecure())->toBeTrue();
-    \expect($cookie->getSameSite())->toBe('none');
+    \expect($cookie->getSameSite())->toBe('lax');
     \expect($cookie->isHttpOnly())->toBeTrue();
 });

@@ -15,6 +15,9 @@ return new class extends Migration {
         Resolver::resolveSchemaBuilder()->create('agent_runs', static function (Blueprint $table): void {
             $table->string('id', 36)->primary();
             $table->string('conversation_id', 36);
+            $table->foreign('conversation_id')->references('id')->on('agent_conversations')->cascadeOnDelete();
+            $table->string('active_conversation_id', 36)->nullable()->unique();
+            $table->unsignedBigInteger('last_event_id')->default(0);
             $table->foreignId('user_id')
                 ->constrained('users')
                 ->cascadeOnUpdate()
@@ -33,9 +36,14 @@ return new class extends Migration {
             $table->index(['user_id', 'status'], 'agent_runs_user_status_idx');
         });
 
+        Resolver::resolveSchemaBuilder()->table('agent_conversation_messages', static function (Blueprint $table): void {
+            $table->foreign('run_id')->references('id')->on('agent_runs')->cascadeOnDelete();
+        });
+
         Resolver::resolveSchemaBuilder()->create('agent_run_events', static function (Blueprint $table): void {
             $table->id();
             $table->string('run_id', 36);
+            $table->foreign('run_id')->references('id')->on('agent_runs')->cascadeOnDelete();
             $table->string('type');
             $table->json('payload');
             $table->timestamps();
@@ -49,6 +57,9 @@ return new class extends Migration {
      */
     public function down(): void
     {
+        Resolver::resolveSchemaBuilder()->table('agent_conversation_messages', static function (Blueprint $table): void {
+            $table->dropForeign(['run_id']);
+        });
         Resolver::resolveSchemaBuilder()->dropIfExists('agent_run_events');
         Resolver::resolveSchemaBuilder()->dropIfExists('agent_runs');
     }

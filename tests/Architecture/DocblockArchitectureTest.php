@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Helpers.php';
+
 use Thinkycz\LaravelCore\Support\Typer;
 
 \arch('app classes have all methods documented (replaces FunctionRequired)', function (): void {
@@ -27,7 +29,7 @@ use Thinkycz\LaravelCore\Support\Typer;
 \arch('app models do not declare @property/@method/@phpstan-method PHPDoc tags', function (): void {
     $banned = ['@property', '@method', '@phpstan-method'];
     $modelsPath = \dirname(__DIR__, 2) . '/app/Models';
-    $files = \glob($modelsPath . '/*.php') ?: [];
+    $files = \arch_php_files($modelsPath);
 
     \expect($files)
         ->not->toBeEmpty('No model files found in app/Models; this guard has nothing to check.');

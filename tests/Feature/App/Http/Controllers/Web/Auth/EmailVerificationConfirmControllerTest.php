@@ -107,7 +107,8 @@ use Thinkycz\LaravelCore\Support\Typer;
 \test('missing parameters return 422', function (): void {
     $response = $this->get('/email/verify');
 
-    $response->assertStatus(422);
+    $response->assertRedirect();
+    $response->assertSessionHasErrors();
 });
 
 \test('guard field is whitelisted to known guards', function (): void {
@@ -126,5 +127,6 @@ use Thinkycz\LaravelCore\Support\Typer;
         'token' => $token,
     ]));
 
-    $response->assertStatus(422);
+    $response->assertRedirect();
+    $response->assertSessionHasErrors();
 });

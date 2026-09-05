@@ -3,13 +3,19 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\PreventCookieRequestForgery;
+use App\Jobs\ReconcileAgentRunsJob;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\StartSession;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Thinkycz\LaravelCore\Http\Middleware\AuthShouldUseMiddleware;
 use Thinkycz\LaravelCore\Http\Middleware\SetPreferredLanguageMiddleware;
@@ -30,16 +36,23 @@ return Application::configure(basePath: \dirname(__DIR__))
         $middleware->redirectGuestsTo('/login');
         $middleware->redirectUsersTo('/dashboard');
 
+        $middleware->replaceInGroup('web', PreventRequestForgery::class, PreventCookieRequestForgery::class);
+
         $middleware->web(append: [
             AuthShouldUseMiddleware::class,
             SetPreferredLanguageMiddleware::class,
             HandleInertiaRequests::class,
         ]);
 
-        $middleware->api(append: [
+        $middleware->api(prepend: [
+            EncryptCookies::class,
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
+            ShareErrorsFromSession::class,
+            PreventCookieRequestForgery::class,
+        ], append: [
             AuthShouldUseMiddleware::class,
             SetPreferredLanguageMiddleware::class,
-            AddQueuedCookiesToResponse::class,
             SetRequestFormatMiddleware::class . ':json',
             ValidateAcceptHeaderMiddleware::class . ':application/vnd.api+json,application/json',
             ValidateContentTypeHeaderMiddleware::class . ':form,json',
@@ -49,6 +62,8 @@ return Application::configure(basePath: \dirname(__DIR__))
         Illuminate\Contracts\Debug\ExceptionHandler::class => Thinkycz\LaravelCore\Exceptions\Handler::class,
     ])
     ->withSchedule(static function (Schedule $schedule): void {
+        $schedule->job(new ReconcileAgentRunsJob())->everyMinute();
+
         $config = Config::inject();
 
         $timezone = $config->assertString('app.schedule_timezone');
@@ -68,28 +83,6 @@ return Application::configure(basePath: \dirname(__DIR__))
     ->withExceptions(static function (Exceptions $exceptions): void {
         $exceptions->render(static function (ModelNotFoundException $exception, Request $request): never {
             throw new NotFoundHttpException(previous: $exception);
-        });
-
-        $exceptions->render(static function (Illuminate\Validation\ValidationException $exception, Request $request): mixed {
-            if ($request->header('X-Inertia') !== 'true') {
-                return null;
-            }
-
-            $component = $request->header('X-Inertia-Partial-Component') ?: match ($request->path()) {
-                'verify-email' => 'auth/VerifyEmail',
-                'forgot-password' => 'auth/ForgotPassword',
-                'reset-password' => 'auth/ResetPassword',
-                'register' => 'auth/Register',
-                'settings/profile' => 'settings/Profile',
-                'settings/password' => 'settings/Password',
-                default => 'auth/Login',
-            };
-
-            $page = Inertia\Inertia::render($component, [
-                'errors' => (object) $exception->errors(),
-            ])->toResponse($request);
-
-            return $page->setStatusCode(422);
         });
     })
     ->create();

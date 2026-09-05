@@ -8,6 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue as ShouldQueueContract;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Thinkycz\LaravelCore\Support\Resolver;
 use Thinkycz\LaravelCore\Support\Trans;
 use Thinkycz\LaravelCore\Support\Typer;
 
@@ -78,6 +79,6 @@ class EmailVerificationNotification extends Notification implements ShouldQueueC
             'locale' => $this->locale,
         ]);
 
-        return ($this->spa ?? Trans::inject()->assertString('spa.email_verification_url')) . '?' . $query;
+        return Resolver::resolveUrlGenerator()->to($this->spa ?? Trans::inject()->assertString('spa.email_verification_url')) . '?' . $query;
     }
 }

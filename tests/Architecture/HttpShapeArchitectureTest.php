@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Helpers.php';
+
 \arch('controllers return SymfonyResponse (not Illuminate\\Http\\Response)', function (): void {
-    foreach (\glob(\base_path('app/Http/Controllers/Api/*/*.php')) as $file) {
+    foreach (\arch_php_files(\base_path('app/Http/Controllers/Api')) as $file) {
         $contents = (string) \file_get_contents($file);
 
         \expect($contents)
@@ -23,7 +25,7 @@ declare(strict_types=1);
 });
 
 \arch('api controllers are flat-action-suffixed (controller files have one of the action verbs)', function (): void {
-    foreach (\glob(\base_path('app/Http/Controllers/Api/*/*.php')) as $file) {
+    foreach (\arch_php_files(\base_path('app/Http/Controllers/Api')) as $file) {
         $class = \pathinfo($file, \PATHINFO_FILENAME);
 
         $matches = (bool) \preg_match('/(Index|Show|Store|Update|Destroy|Login|Register|Logout|Verify|Resend|Forgot|Reset)Controller$/', $class);

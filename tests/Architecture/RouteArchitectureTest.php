@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Helpers.php';
+
 \arch('routes/api.php uses Resolver::resolveRouteRegistrar exclusively', function (): void {
     $contents = (string) \file_get_contents(\base_path('routes/api.php'));
 

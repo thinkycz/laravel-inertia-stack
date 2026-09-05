@@ -47,8 +47,8 @@
         },
         "forgot": {
             "title": "Forgot password",
-            "subtitle": "Send a new generated password using the core mail flow.",
-            "submit": "Send password"
+            "subtitle": "We will email you a link to reset your password.",
+            "submit": "Send reset link"
         },
         "reset": {
             "title": "Reset password",
@@ -116,11 +116,26 @@
         "recommended": "Recommended",
         "resume_existing": "Resuming existing run…",
         "running": "Running…",
-        "tool_running": "Using {tool}…"
+        "tool_running": "Using {tool}…",
+        "cancel_failed": "Unable to cancel. Try again.",
+        "connection_lost": "Connection lost. Your run may still be active.",
+        "run_unavailable": "This run is no longer available.",
+        "reconnecting": "Reconnecting…",
+        "retry_connection": "Retry connection",
+        "cancelling": "Cancelling…",
+        "clarification_tool": "Clarification"
     },
     "locale": {
         "en": "English",
         "cs": "Čeština",
         "sk": "Slovenčina"
+    },
+    "ai": {
+        "errors": {
+            "provider_failed": "The assistant could not complete this response. Please try again.",
+            "dispatch_failed": "The response could not be queued. Please try again.",
+            "worker_failed": "The worker stopped before completing this response.",
+            "reconciliation_failed": "This response timed out. Please try again."
+        }
     }
 }

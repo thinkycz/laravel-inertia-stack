@@ -136,6 +136,14 @@ class AgentRun extends BaseModel
     }
 
     /**
+     * Cursor committed with the content snapshot.
+     */
+    public function getLastEventId(): int
+    {
+        return $this->assertInt('last_event_id');
+    }
+
+    /**
      * Error getter.
      */
     public function getError(): string|null

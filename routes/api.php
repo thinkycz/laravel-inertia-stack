@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\Auth\CsrfShowController;
 use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\Auth\LogoutController;
 use App\Http\Controllers\Api\Auth\RegisterController;
@@ -27,6 +28,7 @@ Resolver::resolveRouteRegistrar()
 Resolver::resolveRouteRegistrar()
     ->prefix('v1/auth')
     ->group(static function (Router $router): void {
+        $router->get('csrf', CsrfShowController::class);
         $router->post('login', LoginController::class)->name('login');
         $router->post('register', RegisterController::class);
         $router->post('logout', LogoutController::class);

@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Helpers.php';
+
 \arch('app models extend BaseModel or BaseUser', function (): void {
-    foreach (\glob(\base_path('app/Models/*.php')) as $file) {
+    foreach (\arch_php_files(\base_path('app/Models')) as $file) {
         $contents = (string) \file_get_contents($file);
 
         \expect($contents)
@@ -12,7 +14,7 @@ declare(strict_types=1);
 });
 
 \arch('non-User app models have querySelect and scopeSearch', function (): void {
-    foreach (\glob(\base_path('app/Models/*.php')) as $file) {
+    foreach (\arch_php_files(\base_path('app/Models')) as $file) {
         $contents = (string) \file_get_contents($file);
 
         if (\str_contains($contents, 'extends BaseUser')) {
@@ -25,13 +27,9 @@ declare(strict_types=1);
     }
 });
 
-\arch('non-Category app models have a casts() method', function (): void {
-    foreach (\glob(\base_path('app/Models/*.php')) as $file) {
+\arch('app models have a casts() method', function (): void {
+    foreach (\arch_php_files(\base_path('app/Models')) as $file) {
         $contents = (string) \file_get_contents($file);
-
-        if (\str_contains($contents, 'class Category')) {
-            continue;
-        }
 
         \expect($contents)
             ->toMatch('/protected function casts\\(\\): array/');

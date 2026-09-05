@@ -9,26 +9,39 @@ use Database\Factories\{{ model }}Factory;
 use Database\Factories\UserFactory;
 use Thinkycz\LaravelCore\Support\Resolver;
 
-test('update {{ table }}', function (): void {
+\test('update {{ table }}', function (): void {
     $auth = UserFactory::new()->createOne();
-    expect($auth)->toBeInstanceOf(User::class);
+    \expect($auth)->toBeInstanceOf(User::class);
 
     $model = {{ model }}Factory::new()
         ->for($auth)
         ->createOne();
-    expect($model)->toBeInstanceOf({{ model }}::class);
+    \expect($model)->toBeInstanceOf({{ model }}::class);
 
     $newModel = {{ model }}Factory::new()
         ->for($auth)
         ->makeOne();
-    expect($newModel)->toBeInstanceOf({{ model }}::class);
+    \expect($newModel)->toBeInstanceOf({{ model }}::class);
 
     $data = [
         'id' => $model->getKey(),
         'title' => $newModel->getTitle(),
     ];
 
-    $response = $this->be($auth)->post(Resolver::resolveUrlGenerator()->action({{ model }}UpdateController::class), $data);
+    $response = $this->be($auth)->postJson(Resolver::resolveUrlGenerator()->action({{ model }}UpdateController::class), $data);
 
     $response->assertNoContent();
+});
+
+\test('guest cannot update {{ table }}', function (): void {
+    $this->postJson(Resolver::resolveUrlGenerator()->action({{ model }}UpdateController::class))->assertUnauthorized();
+});
+
+\test('cannot update another user\'s {{ table }}', function (): void {
+    $owner = UserFactory::new()->createOne();
+    $other = UserFactory::new()->createOne();
+    $model = {{ model }}Factory::new()->for($owner)->createOne();
+
+    $this->be($other)->postJson(Resolver::resolveUrlGenerator()->action({{ model }}UpdateController::class, ['id' => $model->getKey()]), ['title' => 'Changed'])->assertNotFound();
+    $this->assertDatabaseHas('{{ table }}', ['id' => $model->getKey(), 'title' => $model->getTitle()]);
 });

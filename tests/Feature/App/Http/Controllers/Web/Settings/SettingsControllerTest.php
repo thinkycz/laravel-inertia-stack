@@ -49,7 +49,8 @@ use Thinkycz\LaravelCore\Support\Typer;
         'locale' => 'en',
     ]);
 
-    $response->assertStatus(422);
+    $response->assertRedirect();
+    $response->assertSessionHasErrors();
 
     $user->refresh();
     static::assertSame($originalEmail, $user->getEmail());
@@ -67,7 +68,8 @@ use Thinkycz\LaravelCore\Support\Typer;
         'locale' => 'en',
     ]);
 
-    $response->assertStatus(422);
+    $response->assertRedirect();
+    $response->assertSessionHasErrors();
 });
 
 \test('user can update their password', function (): void {
@@ -98,8 +100,26 @@ use Thinkycz\LaravelCore\Support\Typer;
         'new_password' => 'new-password-123',
     ]);
 
-    $response->assertStatus(422);
+    $response->assertRedirect();
+    $response->assertSessionHasErrors();
 
     $user->refresh();
     static::assertSame($originalHash, $user->getAuthPassword());
+});
+
+\test('email changes clear verification but locale changes preserve it', function (): void {
+    $user = UserFactory::new()->createOne();
+    $user->markEmailAsVerified();
+    $this->be($user, 'users')->post('/settings/profile', ['email' => $user->getEmail(), 'locale' => 'cs'])->assertRedirect();
+    \expect($user->refresh()->hasVerifiedEmail())->toBeTrue();
+    $this->post('/settings/profile', ['email' => 'changed@example.com', 'locale' => 'cs'])->assertRedirect();
+    \expect($user->refresh()->hasVerifiedEmail())->toBeFalse();
+});
+
+\test('invalid inertia settings returns to the unified settings form with session errors', function (): void {
+    $user = UserFactory::new()->createOne();
+    $this->be($user, 'users')->from('/settings')->post('/settings/profile', [
+        'email' => 'invalid', 'locale' => 'en',
+    ], $this->inertiaHeaders())->assertRedirect('/settings')->assertSessionHasErrors('email');
+    $this->get('/settings', $this->inertiaHeaders())->assertJsonPath('component', 'settings/Index');
 });

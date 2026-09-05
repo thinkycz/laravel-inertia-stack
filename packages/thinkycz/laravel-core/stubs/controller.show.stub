@@ -7,12 +7,11 @@ namespace {{ namespace }};
 use App\Http\Validation\{{ model }}Validity;
 use {{ namespacedModel }};
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Resources\JsonApi\JsonApiResource;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Thinkycz\LaravelCore\Http\ApiFormRequest;
 use Thinkycz\LaravelCore\Routing\AutomaticController;
 use Thinkycz\LaravelCore\Support\Parser;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class {{ class }} extends AutomaticController
 {
@@ -25,9 +24,9 @@ class {{ class }} extends AutomaticController
 
         $validated = $this->validate($request);
 
-        $model = {{ model }}::mustFindByKey($validated->mustParseInt('id'), static function (Builder $builder): void {
-            {{ model }}::querySelect($builder);
-        });
+        $builder = {{ model }}::query()->whereKey($validated->mustParseInt('id'));
+        {{ model }}::scopeUserId($builder, [$auth->getKey()]);
+        $model = $builder->firstOrFail();
 
         return (new JsonApiResource($model))->response();
     }
@@ -45,7 +44,7 @@ class {{ class }} extends AutomaticController
      */
     protected function validate(ApiFormRequest $request): Parser
     {
-        $validity = new {{ model }}Validity();
+        $validity = {{ model }}Validity::inject();
 
         return $request->builder()
             ->rules([

@@ -11,6 +11,9 @@ use Illuminate\Http\Resources\JsonApi\JsonApiResource;
 use Illuminate\Support\Carbon;
 use Laravel\Ai\Models\Conversation;
 use Thinkycz\LaravelCore\Models\BaseUser;
+use Thinkycz\LaravelCore\Notifications\PasswordResetNotification;
+use Thinkycz\LaravelCore\Support\Resolver;
+use Thinkycz\LaravelCore\Support\Typer;
 
 class User extends BaseUser implements MustVerifyEmail
 {
@@ -71,6 +74,19 @@ class User extends BaseUser implements MustVerifyEmail
         return $this->forceFill([
             'email_verified_at' => null,
         ])->save();
+    }
+
+    /**
+     * Send a reset link to the application password form.
+     */
+    public function sendPasswordResetNotification(mixed $token): void
+    {
+        $url = Resolver::resolveUrlGenerator()->to('/reset-password') . '?' . \http_build_query([
+            'email' => $this->getEmail(),
+            'token' => Typer::assertString($token),
+        ]);
+
+        $this->notify(PasswordResetNotification::inject($this->getTable(), url: $url)->locale($this->preferredLocale()));
     }
 
     /**

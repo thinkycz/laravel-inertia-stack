@@ -31,6 +31,10 @@ export interface ConversationItem {
  * may carry a `null` content (e.g. tool-call placeholders).
  */
 export interface ChatMessage {
+    id: string;
+    status?: string;
+    clarification?: AgentClarification | null;
+    clarification_answer?: string | null;
     role: string;
     content: string | null;
 }
@@ -63,6 +67,7 @@ export interface AgentClarification {
  * replaying events the client has already seen.
  */
 export interface AgentRunSnapshot {
+    assistant_message_id: string;
     id: string;
     conversation_id: string;
     status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';

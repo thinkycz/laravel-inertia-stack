@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+use Thinkycz\LaravelCore\Support\Env;
+
+$env = Env::inject();
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -16,11 +20,11 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
+    'paths' => ['api/*'],
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => \array_values(\array_filter(\array_map('trim', \explode(',', $env->parseNullableString('TRUSTED_ORIGINS') ?? '')), static fn(string $origin): bool => $origin !== '' && $origin !== '*')),
 
     'allowed_origins_patterns' => [],
 

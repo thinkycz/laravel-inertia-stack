@@ -9,14 +9,14 @@ use Database\Factories\{{ model }}Factory;
 use Database\Factories\UserFactory;
 use Thinkycz\LaravelCore\Support\Resolver;
 
-test('index {{ table }}', function (): void {
+\test('index {{ table }}', function (): void {
     $auth = UserFactory::new()->createOne();
-    expect($auth)->toBeInstanceOf(User::class);
+    \expect($auth)->toBeInstanceOf(User::class);
 
     $model = {{ model }}Factory::new()
         ->for($auth)
         ->createOne();
-    expect($model)->toBeInstanceOf({{ model }}::class);
+    \expect($model)->toBeInstanceOf({{ model }}::class);
 
     $query = [
         'filter' => [
@@ -30,19 +30,19 @@ test('index {{ table }}', function (): void {
         'mode' => 'DEFAULT',
     ];
 
-    $response = $this->be($auth)->get(Resolver::resolveUrlGenerator()->action({{ model }}IndexController::class, $query));
+    $response = $this->be($auth)->getJson(Resolver::resolveUrlGenerator()->action({{ model }}IndexController::class, $query));
 
     $response->assertOk();
 });
 
-test('index {{ table }} count', function (): void {
+\test('index {{ table }} count', function (): void {
     $auth = UserFactory::new()->createOne();
-    expect($auth)->toBeInstanceOf(User::class);
+    \expect($auth)->toBeInstanceOf(User::class);
 
     $model = {{ model }}Factory::new()
         ->for($auth)
         ->createOne();
-    expect($model)->toBeInstanceOf({{ model }}::class);
+    \expect($model)->toBeInstanceOf({{ model }}::class);
 
     $query = [
         'filter' => [
@@ -53,11 +53,27 @@ test('index {{ table }} count', function (): void {
         'mode' => 'COUNT',
     ];
 
-    $response = $this->be($auth)->get(Resolver::resolveUrlGenerator()->action({{ model }}IndexController::class, $query));
+    $response = $this->be($auth)->getJson(Resolver::resolveUrlGenerator()->action({{ model }}IndexController::class, $query));
 
     $response->assertOk();
 
     $response->assertExactJson([
         'data' => 1,
     ]);
+});
+
+\test('guest cannot index {{ table }}', function (): void {
+    $this->getJson(Resolver::resolveUrlGenerator()->action({{ model }}IndexController::class))->assertUnauthorized();
+});
+
+\test('index {{ table }} is owned and bounded', function (): void {
+    $owner = UserFactory::new()->createOne();
+    $other = UserFactory::new()->createOne();
+    {{ model }}Factory::new()->for($owner)->count(101)->create();
+    {{ model }}Factory::new()->for($other)->count(2)->create();
+
+    $this->be($owner)->getJson(Resolver::resolveUrlGenerator()->action({{ model }}IndexController::class))->assertJsonCount(25, 'data');
+    $this->getJson(Resolver::resolveUrlGenerator()->action({{ model }}IndexController::class, ['take' => 100]))->assertJsonCount(100, 'data');
+    $this->getJson(Resolver::resolveUrlGenerator()->action({{ model }}IndexController::class, ['take' => 101]))->assertUnprocessable();
+    $this->be($other)->getJson(Resolver::resolveUrlGenerator()->action({{ model }}IndexController::class))->assertJsonCount(2, 'data');
 });

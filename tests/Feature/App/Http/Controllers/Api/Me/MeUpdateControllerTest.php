@@ -125,3 +125,12 @@ use Thinkycz\LaravelCore\Support\Resolver;
 
     $response->assertTooManyRequests();
 });
+
+\test('api email changes clear verification but locale changes retain it', function (): void {
+    $user = UserFactory::new()->createOne();
+    $user->markEmailAsVerified();
+    $this->be($user, 'users')->postJson('/api/v1/me/update', ['locale' => 'cs'])->assertOk();
+    \expect($user->refresh()->hasVerifiedEmail())->toBeTrue();
+    $this->postJson('/api/v1/me/update', ['email' => 'new-address@example.com'])->assertOk();
+    \expect($user->refresh()->hasVerifiedEmail())->toBeFalse();
+});

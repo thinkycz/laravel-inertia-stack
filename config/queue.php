@@ -19,7 +19,7 @@ return [
     */
 
     'default' => $env->parseNullableString('QUEUE_DRIVER') ?? $env->appEnvMap([
-        'local' => 'sync',
+        'local' => 'database',
         'testing' => 'sync',
         'development' => 'redis',
         'staging' => 'redis',
@@ -44,11 +44,19 @@ return [
             'driver' => 'sync',
         ],
 
+        'database' => [
+            'driver' => 'database',
+            'table' => 'jobs',
+            'queue' => 'default',
+            'retry_after' => 180,
+            'after_commit' => true,
+        ],
+
         'redis' => [
             'driver' => 'redis',
             'connection' => $env->parseNullableString('REDIS_QUEUE_CONNECTION') ?? 'default',
             'queue' => $env->parseNullableString('REDIS_QUEUE') ?? 'default',
-            'retry_after' => $env->parseNullableInt('REDIS_QUEUE_RETRY_AFTER') ?? 90,
+            'retry_after' => $env->parseNullableInt('REDIS_QUEUE_RETRY_AFTER') ?? 180,
             'block_for' => null,
             'after_commit' => true,
         ],

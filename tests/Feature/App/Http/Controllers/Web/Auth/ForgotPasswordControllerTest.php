@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Database\Factories\UserFactory;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Notification;
 use Thinkycz\LaravelCore\Models\DatabaseToken;
-use Thinkycz\LaravelCore\Notifications\PasswordNewPasswordSettedNotification;
 use Thinkycz\LaravelCore\Notifications\PasswordResetNotification;
 use Thinkycz\LaravelCore\Support\Typer;
 
@@ -23,10 +21,11 @@ use Thinkycz\LaravelCore\Support\Typer;
         'email' => 'nobody@example.com',
     ]);
 
-    $response->assertStatus(422);
+    $response->assertRedirect();
+    $response->assertSessionHasErrors();
 });
 
-\test('known email updates password and sends notification', function (): void {
+\test('known email sends a reset link without changing the password', function (): void {
     Notification::fake();
 
     $user = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
@@ -38,16 +37,16 @@ use Thinkycz\LaravelCore\Support\Typer;
 
     $response->assertOk();
     $response->assertJsonPath('component', 'auth/ForgotPassword');
-    \assertInertiaFlash($response, 'success', \__('A new password has been sent to your email address.'));
+    \assertInertiaFlash($response, 'success', \__('A password reset link has been sent to your email address.'));
 
     $user->refresh();
 
-    static::assertNotSame($originalHash, $user->getAuthPassword());
+    static::assertSame($originalHash, $user->getAuthPassword());
 
-    Notification::assertSentTo($user, PasswordNewPasswordSettedNotification::class);
+    Notification::assertSentTo($user, PasswordResetNotification::class);
 });
 
-\test('known email revokes existing database tokens', function (): void {
+\test('known email preserves existing database tokens', function (): void {
     $user = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
 
     DatabaseToken::inject()
@@ -59,29 +58,5 @@ use Thinkycz\LaravelCore\Support\Typer;
         'email' => $user->getEmail(),
     ]);
 
-    $this->assertDatabaseCount('database_tokens', 0);
-});
-
-\test('standard broker flow runs when send_raw_password is disabled', function (): void {
-    Config::set('auth.passwords.users.send_raw_password', false);
-
-    Notification::fake();
-
-    $user = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
-    $originalHash = $user->getAuthPassword();
-
-    $response = $this->post('/forgot-password', [
-        'email' => $user->getEmail(),
-    ], $this->inertiaHeaders());
-
-    $response->assertOk();
-    \assertInertiaFlash($response, 'success', \__('A password reset link has been sent to your email address.'));
-
-    $user->refresh();
-
-    // Password is NOT regenerated in the broker flow; only a token is sent.
-    static::assertSame($originalHash, $user->getAuthPassword());
-
-    Notification::assertSentTo($user, PasswordResetNotification::class);
-    Notification::assertNotSentTo($user, PasswordNewPasswordSettedNotification::class);
+    $this->assertDatabaseCount('database_tokens', 1);
 });

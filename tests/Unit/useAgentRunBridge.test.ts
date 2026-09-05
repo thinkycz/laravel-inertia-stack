@@ -20,6 +20,7 @@ function makeSnapshot(
 ): AgentRunSnapshot {
     return {
         id: 'run-123',
+        assistant_message_id: 'assistant-123',
         conversation_id: 'conv-456',
         status: 'queued',
         assistant_content: '',
@@ -36,16 +37,6 @@ interface MountedBridge {
     stop: () => void;
 }
 
-/**
- * Run the bridge composable inside an `effectScope` so its reactive state
- * and refs have a host. The vitest environment is `node` (no DOM) so we
- * cannot mount a real Vue component, and the project does not pull in
- * jsdom/happy-dom as a dev dep.
- *
- * `onBeforeUnmount` registered by the composable is a no-op without a
- * component instance; tests use `bridge.cancel()` (which calls abort())
- * to release polling fetches.
- */
 function mountBridge(
     options: Partial<AgentRunBridgeOptions> = {},
 ): MountedBridge {
@@ -137,7 +128,6 @@ const flushMicrotasks = (): Promise<void> =>
 
 describe('useAgentRunBridge', () => {
     let fetchMock: ReturnType<typeof vi.fn>;
-    let warnSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
         fetchMock = vi.fn();
@@ -145,14 +135,11 @@ describe('useAgentRunBridge', () => {
         vi.stubGlobal('document', {
             cookie: 'XSRF-TOKEN=test',
         });
-        // Silence the expected `onBeforeUnmount outside a component` warning
-        // produced by running the composable in an effectScope.
-        warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     });
 
     afterEach(() => {
         vi.unstubAllGlobals();
-        warnSpy.mockRestore();
+        vi.useRealTimers();
     });
 
     test('start() happy path sets activeRun, fires onRunStarted, and streams text deltas through to the terminal', async () => {
@@ -223,6 +210,27 @@ describe('useAgentRunBridge', () => {
         mounted.stop();
     });
 
+    test('the run_started event advances queued server state independently of connection state', async () => {
+        fetchMock.mockResolvedValueOnce(
+            new Response(
+                new ReadableStream<Uint8Array>({
+                    start(controller) {
+                        controller.enqueue(
+                            new TextEncoder().encode(
+                                'data: {"id":1,"type":"run_started","status":"running"}\n\n',
+                            ),
+                        );
+                    },
+                }),
+            ),
+        );
+        const mounted = mountBridge({ initialRun: makeSnapshot() });
+        await flushMicrotasks();
+        expect(mounted.bridge.activeRun.value?.status).toBe('running');
+        expect(mounted.bridge.connectionStatus.value).toBe('connected');
+        mounted.stop();
+    });
+
     test('poll() propagates tool_activity tool_name to onToolActivity', async () => {
         const mounted = mountBridge();
 
@@ -245,32 +253,30 @@ describe('useAgentRunBridge', () => {
         mounted.stop();
     });
 
-    test('cancel() posts to /agent/runs/cancel and flips the local activeRun status to cancelled', async () => {
-        const mounted = mountBridge();
-
-        fetchMock
-            .mockResolvedValueOnce(startResponse('run-3', 'conv-3'))
-            .mockResolvedValueOnce(
-                sseResponse([
-                    '{"id":1,"type":"text_delta","delta":"partial"}',
-                    '{"id":2,"type":"run_completed"}',
-                ]),
-            )
-            .mockResolvedValueOnce(new Response('{}', { status: 200 }));
-
-        await mounted.bridge.start({ prompt: 'hi', conversationId: null });
-        await flushMicrotasks();
-        // The run is completed, so onTerminal has fired.
-        // Now call cancel — it should still POST to /agent/runs/cancel.
+    test('cancelling a completed run cannot change its terminal state', async () => {
+        const mounted = mountBridge({
+            initialRun: makeSnapshot({ status: 'completed' }),
+        });
         await mounted.bridge.cancel();
+        expect(mounted.bridge.activeRun.value?.status).toBe('completed');
+        expect(fetchMock).not.toHaveBeenCalled();
+        mounted.stop();
+    });
 
-        expect(mounted.bridge.activeRun.value?.status).toBe('cancelled');
-
-        const cancelCall = fetchMock.mock.calls[2];
-        expect(String(cancelCall[0])).toBe('/agent/runs/cancel');
-        const body = JSON.parse(String(cancelCall[1]?.body));
-        expect(body).toEqual({ run_id: 'run-3' });
-
+    test('failed cancellation preserves the running state and remains retryable', async () => {
+        fetchMock.mockImplementation((url: string) =>
+            url.includes('/cancel')
+                ? Promise.resolve(new Response('{}', { status: 500 }))
+                : new Promise(() => {}),
+        );
+        const mounted = mountBridge({
+            initialRun: makeSnapshot({ status: 'running' }),
+        });
+        await mounted.bridge.cancel();
+        expect(mounted.bridge.activeRun.value?.status).toBe('running');
+        expect(mounted.calls.onError).toHaveBeenCalledWith(
+            'agent.cancel_failed',
+        );
         mounted.stop();
     });
 
@@ -283,7 +289,7 @@ describe('useAgentRunBridge', () => {
 
         await expect(
             mounted.bridge.start({ prompt: 'hi', conversationId: null }),
-        ).rejects.toThrow(/HTTP 403/);
+        ).rejects.toThrow('agent.error_generic');
 
         mounted.stop();
     });
@@ -316,6 +322,118 @@ describe('useAgentRunBridge', () => {
             null,
         );
 
+        mounted.stop();
+    });
+
+    test('conflicts attach the returned snapshot and resume from its cursor', async () => {
+        const run = makeSnapshot({
+            id: 'existing',
+            status: 'running',
+            assistant_content: 'Already',
+            last_event_id: 8,
+        });
+        fetchMock
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ active_run: run }), {
+                    status: 409,
+                }),
+            )
+            .mockResolvedValueOnce(
+                sseResponse([
+                    '{"id":9,"type":"text_delta","delta":" done"}',
+                    '{"id":10,"type":"run_completed"}',
+                ]),
+            );
+        const mounted = mountBridge();
+        await mounted.bridge.start({
+            prompt: 'duplicate',
+            conversationId: 'conv-456',
+        });
+        await flushMicrotasks();
+        expect(String(fetchMock.mock.calls[1][0])).toContain(
+            'after_event_id=8',
+        );
+        expect(mounted.bridge.activeRun.value?.assistant_content).toBe(
+            'Already done',
+        );
+        mounted.stop();
+    });
+
+    test('navigation discards callbacks from an obsolete subscription', async () => {
+        let resolveOld: (value: Response) => void = () => {};
+        fetchMock
+            .mockImplementationOnce(
+                () =>
+                    new Promise<Response>((resolve) => {
+                        resolveOld = resolve;
+                    }),
+            )
+            .mockResolvedValueOnce(
+                sseResponse([
+                    '{"id":2,"type":"text_delta","delta":"new"}',
+                    '{"id":3,"type":"run_completed"}',
+                ]),
+            );
+        const mounted = mountBridge({ initialRun: makeSnapshot() });
+        mounted.bridge.attach(makeSnapshot({ id: 'new-run' }));
+        resolveOld(
+            sseResponse([
+                '{"id":2,"type":"text_delta","delta":"obsolete"}',
+                '{"id":3,"type":"run_completed"}',
+            ]),
+        );
+        await flushMicrotasks();
+        expect(mounted.calls.onTextDelta).toHaveBeenCalledExactlyOnceWith(
+            'new',
+        );
+        expect(mounted.bridge.activeRun.value?.id).toBe('new-run');
+        mounted.stop();
+    });
+
+    test('repeated empty streams exhaust retries without declaring completion and can retry', async () => {
+        vi.useFakeTimers();
+        fetchMock.mockResolvedValue(sseResponse([]));
+        const mounted = mountBridge({
+            initialRun: makeSnapshot({ status: 'running' }),
+        });
+        await vi.runAllTimersAsync();
+        expect(fetchMock).toHaveBeenCalledTimes(6);
+        expect(mounted.bridge.connectionStatus.value).toBe('disconnected');
+        expect(mounted.bridge.activeRun.value?.status).toBe('running');
+        expect(mounted.calls.onTerminal).not.toHaveBeenCalled();
+        fetchMock.mockResolvedValueOnce(
+            sseResponse(['{"id":1,"type":"run_completed"}']),
+        );
+        mounted.bridge.retry();
+        await vi.runAllTimersAsync();
+        expect(mounted.bridge.activeRun.value?.status).toBe('completed');
+        mounted.stop();
+        vi.useRealTimers();
+    });
+
+    test('cancel waits for acknowledgment and preserves a winning completion', async () => {
+        let acknowledge: (value: Response) => void = () => {};
+        fetchMock.mockImplementation((url: string) =>
+            url.includes('/cancel')
+                ? new Promise<Response>((resolve) => {
+                      acknowledge = resolve;
+                  })
+                : new Promise(() => {}),
+        );
+        const mounted = mountBridge({
+            initialRun: makeSnapshot({ status: 'running' }),
+        });
+        const cancellation = mounted.bridge.cancel();
+        expect(mounted.bridge.cancelling.value).toBe(true);
+        expect(mounted.bridge.activeRun.value?.status).toBe('running');
+        acknowledge(new Response(JSON.stringify({ status: 'completed' })));
+        await cancellation;
+        expect(mounted.bridge.activeRun.value?.status).toBe('completed');
+        expect(mounted.bridge.cancelling.value).toBe(false);
+        expect(mounted.calls.onTerminal).toHaveBeenCalledWith(
+            'completed',
+            null,
+        );
         mounted.stop();
     });
 

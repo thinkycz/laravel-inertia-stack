@@ -21,20 +21,24 @@ return new class extends AiMigration
 
         Schema::create($conversationsTable, function (Blueprint $table): void {
             $table->string('id', 36)->primary();
-            $table->foreignId('user_id')->nullable();
+            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->string('title');
             $table->timestamps();
 
             $table->index(['user_id', 'updated_at']);
         });
 
-        Schema::create($messagesTable, function (Blueprint $table): void {
+        Schema::create($messagesTable, function (Blueprint $table) use ($conversationsTable): void {
             $table->string('id', 36)->primary();
             $table->string('conversation_id', 36)->index();
-            $table->foreignId('user_id')->nullable();
+            $table->foreign('conversation_id')->references('id')->on($conversationsTable)->cascadeOnDelete();
+            $table->string('run_id', 36)->nullable()->index();
+            $table->string('status')->default('completed');
+            $table->text('clarification_answer')->nullable();
+            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->string('agent');
             $table->string('role', 25);
-            $table->text('content');
+            $table->longText('content');
             $table->text('attachments');
             $table->text('tool_calls');
             $table->text('tool_results');

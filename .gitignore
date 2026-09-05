@@ -31,11 +31,9 @@ yarn-error.log
 
 # node
 /node_modules
-/package-lock.json
 
 # composer
 /vendor
-/composer.lock
 
 # phpunit
 .phpunit.result.cache

@@ -17,9 +17,4 @@ return [
         'line2' => 'Tento odkaz pro obnovení hesla vyprší za :count minut.',
         'line3' => 'Pokud jste o obnovení hesla nežádali, není třeba nic dělat.',
     ],
-    'password_new_password_setted' => [
-        'subject' => 'Nové heslo',
-        'line1' => 'Vaše heslo je: :password',
-        'line2' => 'Heslo s nikým nesdílejte a po přihlášení si ho ihned změňte.',
-    ],
 ];
