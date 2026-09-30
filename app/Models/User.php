@@ -8,8 +8,11 @@ use App\Http\Resources\UserResource;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\Resources\JsonApi\JsonApiResource;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Laravel\Ai\Concerns\HasConversations;
 use Thinkycz\LaravelCore\Models\BaseUser;
+use Thinkycz\LaravelCore\Services\EmailBrokerService;
+use Thinkycz\LaravelCore\Support\Resolver;
 
 class User extends BaseUser implements MustVerifyEmail
 {
@@ -28,6 +31,46 @@ class User extends BaseUser implements MustVerifyEmail
      * @var list<string>
      */
     protected $fillable = ['email', 'password', 'locale'];
+
+    /**
+     * Update profile and invalidate verification only when the email changes.
+     */
+    public function updateProfile(string $email, string $locale): void
+    {
+        DB::transaction(function () use ($email, $locale): void {
+            $changed = $email !== $this->getEmail();
+            if ($changed) {
+                Resolver::resolvePasswordBroker('users')->deleteToken($this);
+            }
+            $this->update(['email' => $email, 'locale' => $locale]);
+
+            if ($changed) {
+                $this->markEmailAsUnverified();
+                $this->sendEmailVerificationNotification();
+            }
+        });
+    }
+
+    /**
+     * Remove the account and owned conversation history atomically.
+     */
+    public function deleteAccount(): void
+    {
+        DB::transaction(function (): void {
+            foreach ($this->conversations()->get() as $conversation) {
+                $conversation->messages()->delete();
+                $conversation->delete();
+            }
+
+            Resolver::resolvePasswordBroker('users')->deleteToken($this);
+            $email = $this->getEmail();
+            DB::afterCommit(static function () use ($email): void {
+                EmailBrokerService::inject()->forget('users', $email);
+            });
+            $this->databaseTokens()->delete();
+            $this->delete();
+        });
+    }
 
     /**
      * Email getter.

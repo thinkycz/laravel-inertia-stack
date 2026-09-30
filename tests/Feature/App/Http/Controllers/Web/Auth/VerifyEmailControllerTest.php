@@ -26,8 +26,7 @@ use Thinkycz\LaravelCore\Support\Typer;
 
     $response = $this->be($user, 'users')->post('/verify-email', [], $this->inertiaHeaders());
 
-    $response->assertOk();
-    $response->assertJsonPath('component', 'auth/VerifyEmail');
+    $response->assertRedirect('/verify-email');
     \assertInertiaFlash($response, 'success', \__('Verification email sent.'));
 
     Notification::assertSentTo($user, EmailVerificationNotification::class);
@@ -41,8 +40,7 @@ use Thinkycz\LaravelCore\Support\Typer;
 
     $response = $this->be($user, 'users')->post('/verify-email', [], $this->inertiaHeaders());
 
-    $response->assertOk();
-    $response->assertJsonPath('component', 'auth/VerifyEmail');
+    $response->assertRedirect('/verify-email');
 
     Notification::assertNothingSent();
 });
@@ -53,4 +51,14 @@ use Thinkycz\LaravelCore\Support\Typer;
     $response = $this->post('/verify-email');
 
     $response->assertRedirect('/login');
+});
+
+\test('successful verification resends retain throttle hits', function (): void {
+    Notification::fake();
+    $this->be(UserFactory::new()->unverified()->createOne(), 'users');
+    for ($i = 0; $i < 5; ++$i) {
+        $this->post('/verify-email')->assertRedirect('/verify-email');
+    }
+    $this->post('/verify-email')->assertStatus(429);
+    Notification::assertCount(5);
 });

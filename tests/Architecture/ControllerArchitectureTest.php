@@ -50,6 +50,7 @@ declare(strict_types=1);
 });
 
 \arch('web index controllers declare a TAKE constant', function (): void {
+    \expect(\is_dir(\base_path('app/Http/Controllers/Web')))->toBeTrue();
     foreach (\glob(\base_path('app/Http/Controllers/Web/**/*IndexController.php')) as $file) {
         $contents = (string) \file_get_contents($file);
 

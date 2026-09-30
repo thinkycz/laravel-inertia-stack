@@ -18,15 +18,16 @@ use Thinkycz\LaravelCore\Support\Typer;
     $response->assertJsonPath('component', 'auth/ForgotPassword');
 });
 
-\test('unknown email returns validation error', function (): void {
+\test('unknown email receives a neutral recovery response', function (): void {
     $response = $this->post('/forgot-password', [
         'email' => 'nobody@example.com',
     ]);
 
-    $response->assertStatus(422);
+    $response->assertRedirect('/forgot-password');
+    $response->assertSessionHasNoErrors();
 });
 
-\test('known email updates password and sends notification', function (): void {
+\test('known email keeps the password and sends a reset link', function (): void {
     Notification::fake();
 
     $user = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
@@ -36,18 +37,17 @@ use Thinkycz\LaravelCore\Support\Typer;
         'email' => $user->getEmail(),
     ], $this->inertiaHeaders());
 
-    $response->assertOk();
-    $response->assertJsonPath('component', 'auth/ForgotPassword');
-    \assertInertiaFlash($response, 'success', \__('A new password has been sent to your email address.'));
+    $response->assertRedirect('/forgot-password');
+    \assertInertiaFlash($response, 'success', \__('recovery.sent'));
 
     $user->refresh();
 
-    static::assertNotSame($originalHash, $user->getAuthPassword());
+    static::assertSame($originalHash, $user->getAuthPassword());
 
-    Notification::assertSentTo($user, PasswordNewPasswordSettedNotification::class);
+    Notification::assertSentTo($user, PasswordResetNotification::class);
 });
 
-\test('known email revokes existing database tokens', function (): void {
+\test('requesting a reset preserves existing database tokens', function (): void {
     $user = Typer::assertInstance(UserFactory::new()->createOne(), User::class);
 
     DatabaseToken::inject()
@@ -59,7 +59,7 @@ use Thinkycz\LaravelCore\Support\Typer;
         'email' => $user->getEmail(),
     ]);
 
-    $this->assertDatabaseCount('database_tokens', 0);
+    $this->assertDatabaseCount('database_tokens', 1);
 });
 
 \test('standard broker flow runs when send_raw_password is disabled', function (): void {
@@ -74,8 +74,8 @@ use Thinkycz\LaravelCore\Support\Typer;
         'email' => $user->getEmail(),
     ], $this->inertiaHeaders());
 
-    $response->assertOk();
-    \assertInertiaFlash($response, 'success', \__('A password reset link has been sent to your email address.'));
+    $response->assertRedirect('/forgot-password');
+    \assertInertiaFlash($response, 'success', \__('recovery.sent'));
 
     $user->refresh();
 
@@ -84,4 +84,15 @@ use Thinkycz\LaravelCore\Support\Typer;
 
     Notification::assertSentTo($user, PasswordResetNotification::class);
     Notification::assertNotSentTo($user, PasswordNewPasswordSettedNotification::class);
+});
+
+\test('valid recovery requests retain throttle hits while invalid input does not consume quota', function (): void {
+    Notification::fake();
+    for ($i = 0; $i < 7; ++$i) {
+        $this->post('/forgot-password', ['email' => 'invalid'])->assertSessionHasErrors('email');
+    }
+    for ($i = 0; $i < 5; ++$i) {
+        $this->post('/forgot-password', ['email' => 'neutral@example.com'])->assertRedirect('/forgot-password');
+    }
+    $this->post('/forgot-password', ['email' => 'neutral@example.com'])->assertStatus(429);
 });

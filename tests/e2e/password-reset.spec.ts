@@ -5,23 +5,23 @@ test.describe('Password reset flow', () => {
         await page.goto('/forgot-password');
 
         await page.getByLabel('Email').fill('nobody@example.com');
-        await page.getByRole('button', { name: 'Send password' }).click();
+        await page.getByRole('button', { name: 'Send reset link' }).click();
 
         await expect(page).toHaveURL(/\/forgot-password/);
     });
 
-    test('forgot password shows validation error for unknown email', async ({
+    test('unknown email receives a neutral recovery message', async ({
         page,
     }) => {
         await page.goto('/forgot-password');
 
         await page.getByLabel('Email').fill('nobody@example.com');
-        await page.getByRole('button', { name: 'Send password' }).click();
+        await page.getByRole('button', { name: 'Send reset link' }).click();
 
         await expect(
             page
                 .getByRole('alert')
-                .filter({ hasText: /unable|user/i })
+                .filter({ hasText: /If an account|reset link/i })
                 .first(),
         ).toBeVisible();
     });
@@ -33,7 +33,9 @@ test.describe('Password reset flow', () => {
 
         await expect(page).toHaveTitle(/Reset password/);
         await expect(page.getByLabel('Email')).toBeVisible();
-        await expect(page.getByLabel('Token')).toBeVisible();
+        await expect(page.locator('input[name=token]')).toHaveValue(
+            'sometoken',
+        );
         await expect(page.getByLabel('New password')).toBeVisible();
     });
 });

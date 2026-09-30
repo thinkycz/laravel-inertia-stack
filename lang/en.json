@@ -24,5 +24,11 @@
     "Password updated.": "Password updated.",
     "A new password has been sent to your email address.": "A new password has been sent to your email address.",
     "A password reset link has been sent to your email address.": "A password reset link has been sent to your email address.",
-    "Verification email sent.": "Verification email sent."
+    "Verification email sent.": "Verification email sent.",
+    "recovery.sent": "If an account exists for this email, a password reset link will arrive shortly.",
+    "security.password_updated": "Password updated. Please sign in again.",
+    "security.session_revoked": "Session revoked.",
+    "security.account_deleted": "Your account has been deleted.",
+    "assistant.unavailable": "The assistant is not available yet. Please try again later.",
+    "assistant.approval_expired": "This approval has already been handled or is no longer available. Reload the conversation to continue."
 }

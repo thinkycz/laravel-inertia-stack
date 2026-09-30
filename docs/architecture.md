@@ -1,152 +1,51 @@
 # Architecture
 
-## High-level
+## Application surfaces
 
-This project is a Laravel 13 + Inertia 3 + Vue 3 single-tenant starter. The
-backend ships with two HTTP surfaces and one framework helper package; the
-frontend is a Vite-built Vue 3 app that consumes Inertia pages from the
-backend.
+Laravel 13 and the local `packages/thinkycz/laravel-core` package serve Inertia web pages and a compatible JSON:API auth surface. Vue 3 Composition API pages are resolved lazily by Vite. PHPStan remains at maximum strictness; TypeScript rejects unused code.
 
-```mermaid
-flowchart LR
-    Browser -->|HTTP| Laravel
-    subgraph Laravel
-      Web[Web routes<br/>app/Http/Controllers/Web]
-      Api[Api routes<br/>app/Http/Controllers/Api]
-      Core[packages/thinkycz/laravel-core]
-      Web --> Core
-      Api --> Core
-    end
-    Laravel -->|Inertia JSON| Browser
-    Browser -->|Vite assets| Vite
-    Vite -->|bundles| Browser
-```
+Web controllers render Inertia pages or redirect after writes. API controllers remain invokable `AutomaticController` classes. Both use core validity, resolver, guard, and typed model APIs. Routes are registered through the core route registrar.
 
-## Middleware chain (web)
+## Validation and forms
 
-```mermaid
-flowchart TD
-    Req[Request] --> TrustProxies
-    TrustProxies --> EncryptCookies
-    EncryptCookies --> AddQueuedCookies
-    AddQueuedCookies --> StartSession
-    StartSession --> ShareErrorsFromSession
-    ShareErrorsFromSession --> VerifyCsrfToken
-    VerifyCsrfToken --> SubstituteBindings
-    SubstituteBindings --> AuthShouldUse[AuthShouldUseMiddleware]
-    AuthShouldUse --> SetPreferredLanguage[SetPreferredLanguageMiddleware]
-    SetPreferredLanguage --> InertiaShare[HandleInertiaRequests]
-    InertiaShare --> GuestOrAuth{guest:users?}
-    GuestOrAuth -->|guest| Controller
-    GuestOrAuth -->|auth| Redirect
-    Controller --> Resp[Inertia Response]
-```
-
-`AuthShouldUseMiddleware` and `SetPreferredLanguageMiddleware` come from
-`packages/thinkycz/laravel-core`. `HandleInertiaRequests` (in
-`app/Http/Middleware/`) extends Inertia's base middleware to share `app`,
-`auth`, `flash`, and inherited `errors`.
-
-## Validation-error flow (Inertia v3)
+Web validation follows the Inertia redirect contract. Laravel redirects with session errors; Inertia shares those errors on the subsequent GET. `WebForm` submits using `router.post`, applies an action-specific error bag, disables duplicate submits, and exposes local errors/pending state to its slot. Password values are excluded from flashed input. JSON API clients still receive 422 JSON errors.
 
 ```mermaid
 sequenceDiagram
-    participant FE as Vue page
-    participant L as Laravel
-    participant H as Exception handler
-    participant IM as Inertia middleware
-
-    FE->>L: POST /login (X-Inertia: true)
-    L->>H: throws ValidationException
-    H->>L: Inertia::render(prev component, {errors})<br/>status 422
-    L-->>FE: 422 + page JSON (errors in props)
-    FE->>FE: useForm onError() → form.setError(errors)
-    FE-->>User: FieldError renders
+    participant Browser
+    participant Controller
+    participant Session
+    Browser->>Controller: POST with Inertia headers and error bag
+    Controller->>Session: Store validation errors
+    Controller-->>Browser: Redirect back
+    Browser->>Controller: GET original page
+    Controller-->>Browser: Inertia page with scoped errors
 ```
 
-Inertia v3 does **not** auto-follow a bare 302 redirect on POST. The handler
-in `bootstrap/app.php` therefore re-renders the previous Inertia component
-with status 422 and the `errors` prop, so the Vue client merges errors into
-the page and populates `useForm().errors`.
+Success notices use `Inertia::flash` and survive guest redirect chains. Multi-step database writes are transactional; queued notifications dispatch after commit.
 
-## Authentication
+## Authentication and account data
 
-```mermaid
-flowchart LR
-    subgraph Login
-      C[LoginController::store] --> H[Resolver::resolveHasher]
-      C --> DT[DatabaseTokenGuard]
-    end
-    DT -->|set cookie| Browser
-    Browser -->|subsequent requests| MW[EnsureInertiaUserIsAuthenticated<br/>or guest:users]
-    MW --> Controller
-```
+The `database_token` guard stores hashed bearer secrets and accepts HTTP-only cookies or bearer headers. Tokens have absolute expiry, last-used time, and bounded browser metadata. Cookies use SameSite Lax, secure `__Host-` names outside local/testing, and the same lifetime as tokens. Authentication rejects expired tokens. A daily scheduled job dispatches bounded per-token pruning work.
 
-- Cookie is HTTP-only and named via the `database_token` config.
-- The guard stores `(user_id, token_hash)` in the `database_tokens`
-  table. **Tokens are permanent until the user explicitly logs out** —
-  there is no `expires_at` column and the guard does not perform
-  sliding-expiry rotation. Adding real expiry is a deliberate deferred
-  hardening item; see the `database_tokens` migration.
-- `LogoutController::destroy` revokes **only the current** token row
-  via `Resolver::resolveDatabaseTokenGuard('users')->logout()` before
-  invalidating the session. Other devices stay signed in.
+The additive token migration preserves existing hashes and grants existing sessions a configured transition period (30 days by default). Sessions are listed through the authenticated user's relationship; expired and foreign tokens are omitted, and no secrets are serialized. Revocation confirms the password and cannot target the current session. Logout revokes the current token; changing a password revokes all tokens and returns to sign-in.
 
-## Frontend layout
+Email changes invalidate verification and old reset links inside the profile transaction. Initial registration and changed email send queued verification notices. Recovery uses reset links and the same neutral response for unknown accounts. Recovery and verification resends retain valid-request throttle hits; invalid input does not consume quota.
 
-```
-resources/js/
-├── app.ts                  # Inertia app bootstrap
-├── components/
-│   └── ui/                 # FieldError, FlashAlerts, Select, Input, Button, Alert, Brand
-├── composables/
-│   ├── useActiveConversation.ts
-│   ├── useBoundLocale.ts
-│   ├── useFieldError.ts
-│   └── useSharedProps.ts
-├── i18n/                   # en, cs, sk JSON plus a `createAppI18n` helper
-├── layouts/
-│   ├── AppLayout.vue       # authenticated shell
-│   └── AuthLayout.vue      # guest shell
-├── lib/                    # framework-agnostic helpers
-├── pages/                  # Inertia page components
-└── types/
-    └── index.ts            # AuthUser, AppMeta, FlashProps, ChatMessage, ChatConversation, SharedProps
-```
+Account deletion uses a shared model operation for both surfaces, removing reset credentials, database tokens, owned conversations/messages, and the user transactionally. Web deletion additionally confirms the current password and invalidates the browser session. Existing API request contracts remain compatible.
 
-Pages import shared props via `useSharedProps()` and render them with the
-`ui/` primitives. Forms use `@inertiajs/vue3`'s `<Form>` for typed
-client-side state; validation errors arrive via page props after the 422
-handshake above. Each form input is wired to its error message via
-`fieldError(errors, field, formId)`, which produces
-`aria-describedby`/`aria-invalid` props for accessibility.
+## Shell and assistant
 
-## Local packages
+The application shell exposes Overview, optional Assistant, and Settings, including mobile navigation, active states, focus-managed dialogs, and device-local system/light/dark appearance. Theme initialization runs before assets paint. App branding and page titles use `APP_NAME`. Both backend and frontend translations keep en/cs/sk parity.
 
-- `packages/thinkycz/laravel-core/` — the framework helper. Provides
-  `Resolver`, `Config`, `Env`, `Typer`, `AuthTiming`, `AuthValidity`,
-  `Thrower`, `Parser`, `DatabaseToken`, `EmailBrokerService`,
-  `AuthShouldUseMiddleware`, `SetPreferredLanguageMiddleware`, and the
-  `Illuminate\Contracts\Debug\ExceptionHandler` binding.
+`AI_ENABLED=false` is the installation default. Disabled routes return 404 and shared props avoid conversation queries. Typed `features` props describe availability. History is shared only on assistant/conversation pages. The Vue AI client lives in the lazy assistant chunk.
 
-App-level code should not re-implement what core already exposes. Use core
-helpers before introducing new ones.
+The assistant uses Laravel AI 1 with the Vercel stream protocol and approval decisions. Owned conversation lookup precedes continuation. Approval IDs must match the latest pending approvals; replay after completion is rejected. The SDK persists approval results and masks provider stream exceptions. Client interruption cancels the pending request and restores the composer.
 
-## Storage
+The original conversation migration now creates a compatible schema or fails before modifying incompatible legacy tables. The additive SDK upgrade converts old tool calls/results/approval state into steps and status while retaining old columns and message content. Legacy data is never automatically dropped.
 
-- Sessions: `file` under `local`, `array` under `testing`, `redis`
-  under `development`/`staging`/`production` (see
-  `config/session.php`). E2e dev server runs with
-  `SESSION_SECURE_COOKIE=false` and `APP_ENV=testing`.
-- Cache: `array` in tests, `file` in dev, `redis` in
-  `development`/`staging`/`production` (per `config/cache.php`).
-- Database: MySQL 8 in production; SQLite `:memory:` in tests.
+## Test and release boundaries
 
-## Runtime services
+Ordinary PHP tests load `tests/environment.env` with forced in-memory SQLite, array cache/mail/session, and sync queues; they neither load local credentials nor clear application caches. Playwright creates temporary databases, separate servers, isolated file cache/sessions, and captured mail. Integration tests explicitly target `starter_integration_tests` and namespaced Redis keys.
 
-MySQL 8, Redis, cron, and supervisor are the production runtime services
-declared in `composer.json` / `docker-compose.yml` (when present).
-
-## Internationalization (i18n)
-
-The backend (`lang/*.json`) and frontend (`resources/js/i18n/*.json`) translation files are separate but mirrored. This duplication is a deliberate design tradeoff to keep the frontend independent of API calls for localizing core UI shells during bootstrap. In the long term, they can be consolidated by either exposing a backend localization API endpoint or generating the client JSON files from the server JSON files during a build step.
+Lockfiles are tracked. Node 24 is standardized in `.nvmrc`, package engines, types, and CI. Composer resolves against PHP 8.3 while retaining Pest 4/PHPUnit 12. Release targets install dev tooling, build assets, migrate, prune dev dependencies, and optimize in that order. Demo seeding is a separate local-only action.

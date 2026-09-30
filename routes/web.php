@@ -45,12 +45,16 @@ Resolver::resolveRouteRegistrar()
     ->middleware(EnsureInertiaUserIsAuthenticated::class)
     ->group(static function (Router $router): void {
         $router->post('logout', LogoutController::class);
-        $router->get('dashboard', DashboardController::class);
+        $router->get('dashboard', DashboardController::class)->name('dashboard');
+        $router->get('assistant', [ConversationController::class, 'create'])->name('assistant');
         $router->get('verify-email', [VerifyEmailController::class, 'create']);
         $router->post('verify-email', [VerifyEmailController::class, 'store']);
         $router->get('settings', [SettingsController::class, 'edit']);
         $router->post('settings/profile', [SettingsController::class, 'updateProfile']);
         $router->post('settings/password', [SettingsController::class, 'updatePassword']);
+        $router->get('settings/sessions', [SettingsController::class, 'index']);
+        $router->post('settings/sessions/{token}/revoke', [SettingsController::class, 'destroySession']);
+        $router->post('settings/delete', [SettingsController::class, 'destroy']);
 
         $router->get('conversations/{id}', [ConversationController::class, 'show']);
         $router->delete('conversations/{id}', [ConversationController::class, 'destroy']);

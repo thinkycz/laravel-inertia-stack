@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
@@ -16,6 +18,20 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         $this->withoutVite();
+    }
+
+    /**
+     * Boot tests independently of local credentials and configuration caches.
+     */
+    public function createApplication(): Application
+    {
+        $app = require __DIR__ . '/../bootstrap/app.php';
+        $app->useEnvironmentPath(__DIR__);
+        $app->loadEnvironmentFrom('environment.env');
+        $this->traitsUsedByTest = \class_uses_recursive(static::class);
+        $app->make(Kernel::class)->bootstrap();
+
+        return $app;
     }
 
     /**

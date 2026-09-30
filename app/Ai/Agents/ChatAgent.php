@@ -31,16 +31,16 @@ class ChatAgent implements Agent, Conversational, HasTools
      */
     public function model(): string
     {
-        return Config::inject()->assertString('ai.providers.openrouter.model');
+        return Config::inject()->parseNullableString('ai.providers.' . Config::inject()->assertString('ai.default') . '.model') ?? 'gpt-4.1-mini';
     }
 
     /**
      * Get the tools available to the agent.
      *
-     * @return Tool[]
+     * @return list<Tool>
      */
-    public function tools(): iterable
+    public function tools(): array
     {
-        yield new SendTestNotificationTool();
+        return [new SendTestNotificationTool()];
     }
 }

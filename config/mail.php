@@ -8,13 +8,17 @@ use Thinkycz\LaravelCore\Support\Resolver;
 $env = Env::inject();
 $app = Resolver::resolveApp();
 
-$driver = $env->parseNullableString('MAIL_DRIVER') ?? $env->appEnvMap([
+$driver = $env->parseNullableString('MAIL_MAILER') ?? $env->parseNullableString('MAIL_DRIVER') ?? $env->appEnvMap([
     'local' => 'log',
     'testing' => 'array',
     'development' => 'smtp',
     'staging' => 'smtp',
-    'production' => 'log',
+    'production' => 'smtp',
 ]);
+
+if ($env->appEnvIs(['production']) && \in_array($driver, ['log', 'array'], true)) {
+    throw new RuntimeException('Production requires a delivery mailer; MAIL_MAILER cannot be log or array.');
+}
 
 if ($driver === 'mailgun') {
     $env->assertString('MAILGUN_DOMAIN');

@@ -7,6 +7,7 @@ test.describe('Email verification', () => {
         await page.goto('/register');
         await page.getByLabel('Email', { exact: true }).fill(email);
         await page.getByLabel('Password', { exact: true }).fill('password1');
+        await page.getByLabel('Confirm password').fill('password1');
         await page.getByLabel('Locale').selectOption('en');
         await page.getByRole('button', { name: 'Register' }).click();
         await page.waitForURL(/\/dashboard/);
@@ -30,6 +31,7 @@ test.describe('Email verification', () => {
         await page.goto('/register');
         await page.getByLabel('Email', { exact: true }).fill(email);
         await page.getByLabel('Password', { exact: true }).fill('password1');
+        await page.getByLabel('Confirm password').fill('password1');
         await page.getByLabel('Locale').selectOption('en');
         await page.getByRole('button', { name: 'Register' }).click();
         await page.waitForURL(/\/dashboard/);

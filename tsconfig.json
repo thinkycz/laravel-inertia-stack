@@ -1,14 +1,12 @@
 {
     "extends": "@vue/tsconfig/tsconfig.dom.json",
     "compilerOptions": {
-        "allowJs": true,
-        "baseUrl": ".",
         "module": "ESNext",
         "moduleResolution": "Bundler",
         "noUnusedLocals": true,
         "noUnusedParameters": true,
         "paths": {
-            "@/*": ["resources/js/*"]
+            "@/*": ["./resources/js/*"]
         },
         "strict": true,
         "types": ["vite/client", "node"]

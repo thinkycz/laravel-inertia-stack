@@ -42,13 +42,17 @@ class EmailBrokerService
      */
     public function validate(string $guard, string $email, string $token): bool
     {
-        if (!Config::inject()->appEnvIs(['production']) && $token === '111111') {
-            return true;
-        }
-
         $expected = Resolver::resolveCacheManager()->get($this->cacheKey($guard, $email));
 
         return \is_string($expected) && \hash_equals($expected, $token);
+    }
+
+    /**
+     * Forget verification state for a deleted or changed account.
+     */
+    public function forget(string $guard, string $email): void
+    {
+        Resolver::resolveCacheManager()->forget($this->cacheKey($guard, $email));
     }
 
     /**
@@ -102,12 +106,10 @@ class EmailBrokerService
     }
 
     /**
-     * Token expiration in minutes.
+     * Token expiration in seconds.
      */
     protected function cacheExpiration(): int|null
     {
-        $config = Config::inject();
-
-        return $config->parseInt('auth.verification.expire');
+        return Config::inject()->parseInt('auth.verification.expire');
     }
 }

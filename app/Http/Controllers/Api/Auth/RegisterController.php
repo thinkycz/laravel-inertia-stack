@@ -31,17 +31,19 @@ class RegisterController extends AutomaticController
 
         if ($guard === GuardEnum::USERS->value) {
             $user = DB::transaction(static function () use ($validated): User {
-                return User::create([
+                $user = User::create([
                     'email' => $validated->assertString('email'),
                     'locale' => $validated->assertString('locale'),
                     'password' => $validated->assertString('password'),
                 ]);
+                Resolver::resolveDatabaseTokenGuard($user->getTable())->login($user);
+                $user->sendEmailVerificationNotification();
+
+                return $user;
             });
         } else {
             throw GenericHttpException::unauthorized();
         }
-
-        Resolver::resolveDatabaseTokenGuard($user->getTable())->login($user);
 
         $user->refresh();
 

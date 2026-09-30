@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use RuntimeException;
+use Thinkycz\LaravelCore\Support\Config;
 
 class DatabaseSeeder extends Seeder
 {
@@ -13,6 +15,10 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        if (!Config::inject()->appEnvIs(['local'])) {
+            throw new RuntimeException('Demo seeding is only available in the local environment.');
+        }
+
         $this->callOnce(UserSeeder::class);
     }
 }

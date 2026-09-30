@@ -10,24 +10,36 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Thinkycz\LaravelCore\Support\Config;
 use Thinkycz\LaravelCore\Support\Resolver;
 
 class ConversationController
 {
     /**
+     * Show the optional assistant workspace.
+     */
+    public function create(): Response
+    {
+        \abort_unless(Config::inject()->assertBool('ai.enabled'), 404);
+
+        return Inertia::render('Assistant');
+    }
+
+    /**
      * Show a specific conversation.
      */
     public function show(string $id): RedirectResponse|Response
     {
+        \abort_unless(Config::inject()->assertBool('ai.enabled'), 404);
         $user = User::mustAuth();
         $conversations = Resolver::resolve(ConversationRepository::class);
         $conversation = $conversations->findOwned($id, $user);
 
         if ($conversation === null) {
-            return Resolver::resolveRedirector()->to('/dashboard');
+            return Resolver::resolveRedirector()->to('/assistant');
         }
 
-        return Inertia::render('Dashboard', [
+        return Inertia::render('Assistant', [
             'conversation' => $conversations->dashboardPayload($conversation),
         ]);
     }
@@ -37,12 +49,13 @@ class ConversationController
      */
     public function destroy(Request $request, string $id): RedirectResponse
     {
+        \abort_unless(Config::inject()->assertBool('ai.enabled'), 404);
         $user = User::mustAuth();
         $conversations = Resolver::resolve(ConversationRepository::class);
         $conversation = $conversations->findOwned($id, $user);
 
         if ($conversation === null) {
-            return Resolver::resolveRedirector()->to('/dashboard');
+            return Resolver::resolveRedirector()->to('/assistant');
         }
 
         $conversations->delete($conversation);
@@ -57,7 +70,7 @@ class ConversationController
         }
 
         if ($isDeletingCurrent) {
-            return Resolver::resolveRedirector()->to('/dashboard');
+            return Resolver::resolveRedirector()->to('/assistant');
         }
 
         return Resolver::resolveRedirector()->back();

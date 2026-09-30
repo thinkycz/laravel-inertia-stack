@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Thinkycz\LaravelCore\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Thinkycz\LaravelCore\Support\Config;
+use Thinkycz\LaravelCore\Support\Resolver;
 use Thinkycz\LaravelCore\Support\Typer;
 
 class DatabaseToken extends BaseModel
@@ -56,6 +58,15 @@ class DatabaseToken extends BaseModel
             return null;
         }
 
+        if ($instance->getExpiresAt()?->isFuture() !== true) {
+            return null;
+        }
+
+        if ($instance->getLastUsedAt() === null || $instance->getLastUsedAt()->lt(Carbon::now()->subMinutes(5))) {
+            $instance->setAttribute('last_used_at', Carbon::now());
+            $instance->save();
+        }
+
         return $instance;
     }
 
@@ -68,14 +79,50 @@ class DatabaseToken extends BaseModel
         $hash = \hash('sha256', $token);
 
         $this->setAttribute('hash', $hash);
+        $this->setAttribute('expires_at', Carbon::now()->addDays(Config::inject()->assertInt('auth.token_lifetime_days')));
+        $this->setAttribute('last_used_at', Carbon::now());
+        $this->setAttribute('user_agent', Str::limit(Resolver::resolveRequest()->userAgent() ?? '', 512, ''));
 
         $this->relationship($guardName, $user)->associate($user);
 
         $this->save();
+        $this->unsetRelation('relationship');
 
         $this->bearer = "{$this->getKey()}|{$token}";
 
         return $this;
+    }
+
+    /**
+     * Get the absolute expiry time.
+     */
+    public function getExpiresAt(): Carbon|null
+    {
+        return $this->assertNullableCarbon('expires_at');
+    }
+
+    /**
+     * Get the last authenticated request time.
+     */
+    public function getLastUsedAt(): Carbon|null
+    {
+        return $this->assertNullableCarbon('last_used_at');
+    }
+
+    /**
+     * Get the browser description without exposing bearer credentials.
+     */
+    public function getUserAgent(): string|null
+    {
+        return $this->assertNullableString('user_agent');
+    }
+
+    /**
+     * Get the session creation time.
+     */
+    public function getCreatedAt(): Carbon
+    {
+        return $this->assertCarbon('created_at');
     }
 
     /**
@@ -84,6 +131,14 @@ class DatabaseToken extends BaseModel
     public function user(string $guardName): BaseUser|null
     {
         return Typer::assertNullableInstance($this->relationship($guardName, null)->getResults(), BaseUser::class);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    protected function casts(): array
+    {
+        return ['expires_at' => 'datetime', 'last_used_at' => 'datetime'];
     }
 
     /**

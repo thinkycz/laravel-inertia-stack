@@ -24,7 +24,7 @@ class ValidationException extends IlluminateValidationException
         $this->validator = $validator;
         $this->response = null;
         $this->status = $statusCode;
-        $this->errorBag = '';
+        $this->errorBag = 'default';
 
         Exception::__construct($message, $code, $previous);
     }

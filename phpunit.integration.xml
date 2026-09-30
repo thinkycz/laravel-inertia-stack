@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+    bootstrap="vendor/autoload.php"
+    colors="true"
+>
+    <testsuites>
+        <testsuite name="Integration">
+            <file>tests/Feature/InfrastructureTest.php</file>
+            <file>tests/Feature/MigrationUpgradeTest.php</file>
+            <file>
+                tests/Feature/App/Http/Controllers/Web/Settings/SettingsControllerTest.php
+            </file>
+            <file>
+                tests/Feature/Thinkycz/LaravelCore/Guards/DatabaseTokenGuardTest.php
+            </file>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing" force="true" />
+        <env name="APP_NAME" value="Starter Tests" force="true" />
+        <env name="APP_URL" value="http://localhost" force="true" />
+        <env
+            name="APP_KEY"
+            value="base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+            force="true"
+        />
+        <env
+            name="APP_CONFIG_CACHE"
+            value="storage/framework/test-config.php"
+            force="true"
+        />
+        <env name="DB_USERNAME" value="root" force="true" />
+        <env name="MAIL_FROM_ADDRESS" value="tests@example.com" force="true" />
+        <env name="MAIL_FROM_NAME" value="Starter Tests" force="true" />
+        <env name="APP_MAINTENANCE_DRIVER" value="file" />
+        <env name="BCRYPT_ROUNDS" value="4" />
+        <env name="CACHE_STORE" value="array" force="true" />
+        <env name="DB_CONNECTION" value="mysql" force="true" />
+        <env
+            name="DB_DATABASE"
+            value="starter_integration_tests"
+            force="true"
+        />
+        <env name="MAIL_MAILER" value="array" force="true" />
+        <env name="QUEUE_CONNECTION" value="sync" force="true" />
+        <env name="SESSION_DRIVER" value="array" force="true" />
+        <env name="DB_HOST" value="127.0.0.1" />
+        <env name="DB_PORT" value="3306" />
+        <env name="DB_PASSWORD" value="" />
+        <env name="DB_SOCKET" value="" />
+        <env name="REDIS_HOST" value="127.0.0.1" />
+        <env name="REDIS_PORT" value="6379" />
+        <env name="REDIS_USERNAME" value="" />
+        <env name="REDIS_PASSWORD" value="" />
+        <env
+            name="REDIS_PREFIX"
+            value="{starter_integration_tests}:"
+            force="true"
+        />
+    </php>
+</phpunit>

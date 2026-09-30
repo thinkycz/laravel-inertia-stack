@@ -1,39 +1,19 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { useI18n } from 'vue-i18n';
+import { Layers } from '@lucide/vue';
 import { useSharedProps } from '@/composables/useSharedProps';
-
-withDefaults(
-    defineProps<{
-        href?: string;
-    }>(),
-    {
-        href: '/',
-    },
-);
-
+withDefaults(defineProps<{ href?: string }>(), { href: '/dashboard' });
 const { app } = useSharedProps();
-const { t } = useI18n();
 </script>
-
 <template>
-    <Link :href="href" class="flex items-center gap-3 font-medium select-none">
-        <div
-            class="flex h-9 w-9 items-center justify-center rounded-xl bg-primary font-heading text-base font-bold text-white shadow-[0_2px_8px_rgba(15,23,42,0.2)]"
-        >
-            S
-        </div>
-        <div class="text-left">
-            <h1
-                class="mb-0.5 font-heading text-sm font-bold tracking-tight text-on-surface leading-none"
-            >
-                {{ app.name }}
-            </h1>
-            <p
-                class="font-mono text-[9px] font-semibold tracking-wider text-on-surface-variant uppercase opacity-75 leading-none"
-            >
-                {{ t('brand.subtitle') }}
-            </p>
-        </div>
+    <Link
+        :href="href"
+        class="flex min-w-0 items-center gap-3 font-semibold tracking-tight"
+    >
+        <span
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-surface-container-lowest"
+            ><Layers :size="19" aria-hidden="true"
+        /></span>
+        <span class="truncate text-sm">{{ app.name }}</span>
     </Link>
 </template>

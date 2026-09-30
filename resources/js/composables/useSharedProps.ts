@@ -6,6 +6,9 @@ export function useSharedProps() {
     const page = usePage<SharedProps>();
 
     return {
+        features: computed(
+            () => page.props.features ?? { ai: false, ai_ready: false },
+        ),
         app: computed(() => page.props.app),
         auth: computed(() => page.props.auth),
         user: computed(() => page.props.auth?.user ?? null),

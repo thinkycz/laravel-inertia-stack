@@ -7,6 +7,7 @@ namespace App\Ai;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Laravel\Ai\Enums\MessageStatus;
 use Laravel\Ai\Models\Conversation;
 use Laravel\Ai\Models\ConversationMessage;
 use Thinkycz\LaravelCore\Support\Typer;
@@ -87,7 +88,7 @@ class ConversationRepository
     public function latestPendingMessageId(Conversation $conversation): string|null
     {
         $message = $conversation->messages()
-            ->whereNotNull('approval_state')
+            ->where('status', MessageStatus::Paused)
             ->orderByDesc('id')
             ->first();
 
@@ -95,9 +96,7 @@ class ConversationRepository
             return null;
         }
 
-        $state = $this->arrayAttribute($message, 'approval_state');
-
-        return ($state['pending'] ?? []) === [] ? null : Typer::assertString($message->getKey());
+        return Typer::assertString($message->getKey());
     }
 
     /**
@@ -149,8 +148,6 @@ class ConversationRepository
             }
         }
 
-        $approvalState = $this->arrayAttribute($message, 'approval_state');
-        $pending = \is_array($approvalState['pending'] ?? null) ? $approvalState['pending'] : [];
         $parts = [];
 
         foreach ($this->arrayAttribute($message, 'tool_calls') as $call) {
@@ -166,7 +163,7 @@ class ConversationRepository
                 'input' => $input,
             ];
 
-            if (\array_key_exists($id, $pending)) {
+            if (\array_key_exists('approval_reason', $call) && !\array_key_exists('result', $call)) {
                 $parts[] = [...$part, 'state' => 'approval-requested', 'approval' => ['id' => $id]];
 
                 continue;

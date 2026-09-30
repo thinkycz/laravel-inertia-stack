@@ -16,6 +16,7 @@ use Thinkycz\LaravelCore\Notifications\PasswordInitNotification;
 use Thinkycz\LaravelCore\Notifications\PasswordNewPasswordSettedNotification;
 use Thinkycz\LaravelCore\Notifications\PasswordResetNotification;
 use Thinkycz\LaravelCore\Services\EmailBrokerService;
+use Thinkycz\LaravelCore\Support\Config;
 use Thinkycz\LaravelCore\Support\Resolver;
 use Thinkycz\LaravelCore\Traits\ModelTrait;
 
@@ -112,7 +113,7 @@ class BaseUser extends IlluminateUser implements HasLocalePreferenceContract
             return;
         }
 
-        $this->notify(PasswordResetNotification::inject($this->getTable(), $token, $this->getEmailForPasswordReset())->locale($this->preferredLocale()));
+        $this->notify(PasswordResetNotification::inject($this->getTable(), $token, $this->getEmailForPasswordReset(), spa: Config::inject()->parseNullableString("auth.passwords.{$this->getTable()}.reset_url"))->locale($this->preferredLocale()));
     }
 
     /**
@@ -141,6 +142,7 @@ class BaseUser extends IlluminateUser implements HasLocalePreferenceContract
                 $this->getTable(),
                 EmailBrokerService::inject()->store($this->getTable(), $this->getEmailForVerification()),
                 $this->getEmailForVerification(),
+                spa: Config::inject()->parseNullableString('auth.verification_url'),
             )->locale($this->preferredLocale()),
         );
     }

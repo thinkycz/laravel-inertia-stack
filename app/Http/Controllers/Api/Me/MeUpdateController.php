@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Me;
 
 use App\Enums\GuardEnum;
+use App\Models\User;
 use Illuminate\Auth\AuthenticationException;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Thinkycz\LaravelCore\Http\ApiFormRequest;
-use Thinkycz\LaravelCore\Models\BaseUser;
 use Thinkycz\LaravelCore\Routing\AutomaticController;
 use Thinkycz\LaravelCore\Support\Config;
 use Thinkycz\LaravelCore\Support\Parser;
@@ -31,14 +31,11 @@ class MeUpdateController extends AutomaticController
 
         $user = Resolver::resolveAuthManager()->guard($guard)->user();
 
-        if ($user instanceof BaseUser === false) {
+        if ($user instanceof User === false) {
             throw new AuthenticationException();
         }
 
-        $user->update([
-            'email' => $validated->parseNullableString('email') ?? $user->getEmail(),
-            'locale' => $validated->parseNullableString('locale') ?? $user->getLocale(),
-        ]);
+        $user->updateProfile($validated->parseNullableString('email') ?? $user->getEmail(), $validated->parseNullableString('locale') ?? $user->getLocale());
 
         return $user->meResource()->response();
     }
@@ -69,7 +66,7 @@ class MeUpdateController extends AutomaticController
 
         $user = Resolver::resolveAuthManager()->guard($guard)->user();
 
-        if ($user instanceof BaseUser === false) {
+        if ($user instanceof User === false) {
             throw new AuthenticationException();
         }
 

@@ -91,8 +91,12 @@ class Handler extends IlluminateHandler
     /**
      * @inheritDoc
      */
-    protected function invalid(mixed $request, ValidationException $exception): RedirectResponse|Response
+    protected function invalid(mixed $request, ValidationException $exception): JsonResponse|RedirectResponse|Response
     {
+        if ($request->header('X-Inertia') === 'true' || !$request->is('api/*')) {
+            return parent::invalid($request, $exception);
+        }
+
         $httpException = $this->httpException($exception->status, $exception);
 
         if ($this->debug()) {
@@ -157,7 +161,7 @@ class Handler extends IlluminateHandler
      */
     protected function shouldReturnJson(mixed $request, Throwable $e): bool
     {
-        return parent::shouldReturnJson($request, $e) || $request->getRequestFormat() === 'json';
+        return $request->header('X-Inertia') !== 'true' && (parent::shouldReturnJson($request, $e) || $request->getRequestFormat() === 'json');
     }
 
     /**

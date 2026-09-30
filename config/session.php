@@ -72,7 +72,7 @@ return [
     |
     */
 
-    'files' => $app->storagePath('framework/sessions'),
+    'files' => $env->parseNullableString('SESSION_FILES') ?? $app->storagePath('framework/sessions'),
 
     /*
     |--------------------------------------------------------------------------

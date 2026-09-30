@@ -78,6 +78,7 @@ class ResetPasswordController
         });
 
         Resolver::resolveDatabaseTokenGuard('users')->login($user);
+        $request->session()->regenerate();
 
         $clearThrottle();
 

@@ -5,8 +5,13 @@ declare(strict_types=1);
 use Thinkycz\LaravelCore\Support\Env;
 
 $env = Env::inject();
+$conversationConnection = $env->parseNullableString('AI_CONVERSATIONS_CONNECTION');
+if ($conversationConnection !== null && $conversationConnection !== ($env->parseNullableString('DB_CONNECTION') ?? 'mysql')) {
+    throw new RuntimeException('The starter requires AI history on the application database to keep account deletion transactional.');
+}
 
 return [
+    'enabled' => $env->parseNullableBool('AI_ENABLED') ?? false,
     /*
     |--------------------------------------------------------------------------
     | Default AI Provider Names
@@ -37,7 +42,7 @@ return [
     */
 
     'conversations' => [
-        'connection' => $env->parseNullableString('AI_CONVERSATIONS_CONNECTION'),
+        'connection' => $conversationConnection,
         'generate_title' => $env->parseNullableBool('AI_CONVERSATIONS_GENERATE_TITLE') ?? true,
         'tables' => [
             'conversations' => $env->parseNullableString('AI_CONVERSATIONS_TABLE') ?? 'agent_conversations',

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Form, Link } from '@inertiajs/vue3';
+import WebForm from '@/components/ui/WebForm.vue';
+import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AuthLayout from '@/layouts/AuthLayout.vue';
@@ -30,10 +31,9 @@ const localeOptions = computed(() =>
         :title="t('auth.register.title')"
         :subtitle="t('auth.register.subtitle')"
     >
-        <Form
+        <WebForm
             v-slot="{ errors, processing }"
             action="/register"
-            method="post"
             :reset-on-error="['password', 'password_confirmation']"
             class="space-y-5"
         >
@@ -118,9 +118,9 @@ const localeOptions = computed(() =>
             <Button type="submit" class="w-full" :disabled="processing">{{
                 t('auth.register.submit')
             }}</Button>
-        </Form>
+        </WebForm>
 
-        <p class="mt-6 text-center text-xs font-medium text-on-surface-variant">
+        <p class="mt-6 text-center text-sm font-medium text-on-surface-variant">
             {{ t('auth.register.login_link') }}
             <Link
                 href="/login"

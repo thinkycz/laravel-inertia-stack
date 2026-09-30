@@ -27,7 +27,6 @@ use Thinkycz\LaravelCore\Support\Resolver;
     Notification::fake();
 
     Config::inject()->assign('auth.defaults.passwords', 'users');
-    Config::inject()->assign('auth.passwords.users.send_raw_password', false);
 
     $user = UserFactory::new()->createOne([
         'email' => 'forgot@example.com',
@@ -43,11 +42,11 @@ use Thinkycz\LaravelCore\Support\Resolver;
     Notification::assertSentTo($user, PasswordResetNotification::class);
 });
 
-\test('user can request password reset link send raw password flow', function (): void {
+\test('obsolete raw password configuration cannot email a password', function (): void {
     Notification::fake();
 
     Config::inject()->assign('auth.defaults.passwords', 'users');
-    Config::inject()->assign('auth.passwords.users.send_raw_password', true);
+    Resolver::resolveConfigRepository()->set('auth.passwords.users.send_raw_password', true);
 
     $user = UserFactory::new()->createOne([
         'email' => 'forgot@example.com',
@@ -60,16 +59,16 @@ use Thinkycz\LaravelCore\Support\Resolver;
 
     $response->assertNoContent();
 
-    Notification::assertSentTo($user, PasswordNewPasswordSettedNotification::class);
+    Notification::assertSentTo($user, PasswordResetNotification::class);
+    Notification::assertNotSentTo($user, PasswordNewPasswordSettedNotification::class);
 });
 
-\test('password reset link request fails with invalid email', function (): void {
+\test('unknown account receives the same neutral response', function (): void {
     $response = $this->postJson(Resolver::resolveUrlGenerator()->action(PasswordForgotController::class), [
         'email' => 'nonexistent@example.com',
     ]);
 
-    $response->assertUnprocessable();
-    $response->assertJsonValidationErrors('email');
+    $response->assertNoContent();
 });
 
 \test('password reset link request requires email', function (): void {

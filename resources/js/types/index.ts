@@ -23,7 +23,7 @@ export interface ConversationItem {
 }
 
 /**
- * The conversation payload rendered on the dashboard.
+ * The conversation payload rendered in the assistant workspace.
  */
 export interface ChatConversation {
     id: string;
@@ -51,6 +51,7 @@ export interface AgentToolDecision {
 export interface SharedProps {
     [key: string]: unknown;
 
+    features: { ai: boolean; ai_ready: boolean };
     app: AppMeta;
     auth: {
         user: AuthUser | null;
@@ -60,3 +61,12 @@ export interface SharedProps {
     errors: Record<string, string>;
 }
 import type { UIMessage } from 'ai';
+
+export interface LoginSession {
+    id: number;
+    browser: string | null;
+    created_at: string | null;
+    last_used_at: string | null;
+    expires_at: string | null;
+    current: boolean;
+}

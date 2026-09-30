@@ -41,14 +41,14 @@
         },
         "register": {
             "title": "Create account",
-            "subtitle": "Start with an authenticated Inertia workspace.",
+            "subtitle": "Create your account to get started.",
             "submit": "Register",
             "login_link": "Already have an account?"
         },
         "forgot": {
             "title": "Forgot password",
-            "subtitle": "Send a new generated password using the core mail flow.",
-            "submit": "Send password"
+            "subtitle": "Enter your email and we will send you a link to reset your password.",
+            "submit": "Send reset link"
         },
         "reset": {
             "title": "Reset password",
@@ -63,9 +63,12 @@
         },
         "verify": {
             "title": "Verify email",
-            "description": "Email verification is powered by the core notification flow. Send a fresh verification message when the current user still needs to verify their address.",
+            "description": "Check your inbox for a verification link. If it has expired, request a new one below.",
             "submit": "Send verification email"
-        }
+        },
+        "workspace_title": "Your workspace.\nA clearer starting point.",
+        "workspace_description": "A focused place for your account, your preferences, and what comes next.",
+        "private_workspace": "Your account. Your space."
     },
     "settings": {
         "title": "Settings",
@@ -77,12 +80,14 @@
         "password": {
             "title": "Password",
             "submit": "Update password"
-        }
+        },
+        "security": "Security",
+        "appearance": "Appearance"
     },
     "dashboard": {
         "title": "Dashboard",
         "how_can_i_help": "How can I help you today?",
-        "chat_description": "Start an interactive chat session with your AI Agent. This stack is optimized with Laravel AI SDK and OpenRouter.",
+        "chat_description": "Ask a question, explore an idea, or work through your next step.",
         "type_message": "Type a message...",
         "send": "Send message",
         "suggestions": {
@@ -125,5 +130,53 @@
         "en": "English",
         "cs": "Čeština",
         "sk": "Slovenčina"
+    },
+    "shell": {
+        "workspace": "Workspace",
+        "navigation": "Navigation",
+        "open_navigation": "Open navigation",
+        "your_account": "Your account"
+    },
+    "overview": {
+        "title": "Overview",
+        "welcome": "Welcome to your workspace",
+        "description": "Your account, preferences, and everyday essentials. All in one place.",
+        "manage": "Manage account",
+        "verify_title": "One more step: verify your email",
+        "verify_description": "Confirm your address to keep your account up to date.",
+        "account": "Account at a glance",
+        "signed_in": "Signed in",
+        "email_status": "Email status",
+        "verified": "Verified",
+        "pending": "Awaiting verification",
+        "shortcuts": "Make it yours",
+        "security_description": "Review your active sessions and keep your password up to date.",
+        "appearance_description": "Choose a comfortable theme and make this space feel familiar.",
+        "review_security": "Review security",
+        "personalize": "Personalize workspace",
+        "assistant_description": "A little help with your next idea."
+    },
+    "security": {
+        "password_hint": "Changing your password signs you out on every device.",
+        "sessions": "Active sessions",
+        "sessions_hint": "Review where you are signed in. Revoke any session you no longer use.",
+        "unknown_browser": "Unknown browser",
+        "expires": "Expires",
+        "current": "This device",
+        "revoke": "Revoke session",
+        "no_sessions": "No active sessions to display.",
+        "confirm_password": "Enter your current password to confirm this action.",
+        "delete_account": "Delete account",
+        "delete_hint": "This permanently deletes your account, all sessions, and conversation history. This cannot be undone.",
+        "last_active": "Last active"
+    },
+    "appearance": {
+        "description": "Choose how the application looks on this device.",
+        "system": "System",
+        "light": "Light",
+        "dark": "Dark"
+    },
+    "assistant": {
+        "unavailable": "The assistant is not available yet. Please try again later."
     }
 }

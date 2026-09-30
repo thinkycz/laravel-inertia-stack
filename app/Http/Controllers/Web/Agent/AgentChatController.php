@@ -14,11 +14,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Laravel\Ai\Approvals\Decision;
 use Laravel\Ai\Approvals\Decisions;
+use Laravel\Ai\Approvals\PendingApproval;
 use Laravel\Ai\Contracts\ConversationStore;
+use Laravel\Ai\Contracts\ResolvesPendingApprovals;
 use Laravel\Ai\Models\Conversation;
 use Symfony\Component\HttpFoundation\Response;
 use Thinkycz\LaravelCore\Http\RequestSignature;
+use Thinkycz\LaravelCore\Support\Config;
 use Thinkycz\LaravelCore\Support\Resolver;
+use Thinkycz\LaravelCore\Support\Thrower;
 use Thinkycz\LaravelCore\Support\Typer;
 
 class AgentChatController
@@ -31,6 +35,10 @@ class AgentChatController
      */
     public function __invoke(Request $request): Response
     {
+        \abort_unless(Config::inject()->assertBool('ai.enabled'), 404);
+        $provider = Config::inject()->assertString('ai.default');
+        \abort_if(Config::inject()->parseNullableString("ai.providers.{$provider}.key") === null, 503, Typer::assertString(\__('assistant.unavailable')));
+
         $validated = $this->validateRequest($request, [
             'message' => ['nullable', 'string', 'max:10000', 'required_without:decisions', 'prohibited_with:decisions'],
             'conversation_id' => ['nullable', 'string', 'required_with:decisions'],
@@ -65,10 +73,18 @@ class AgentChatController
             $conversation = $conversations->findOwned($conversationId, $user);
         }
 
+        if ($message === null) {
+            $pendingIds = \array_map(static fn(PendingApproval $approval): string => $approval->id, Typer::assertInstance(Resolver::resolve(ConversationStore::class), ResolvesPendingApprovals::class)->pendingApprovalsFor($conversationId));
+            $decisionIds = \array_keys($validated->parseArray('decisions'));
+            if ($pendingIds === [] || \array_diff($pendingIds, $decisionIds) !== [] || \array_diff($decisionIds, $pendingIds) !== []) {
+                Thrower::default()->message('decisions', Typer::assertString(\__('assistant.approval_expired')))->throw();
+            }
+        }
+
         $agent = ChatAgent::make()->continue($conversationId, $user);
         $prompt = $message ?? $this->decisions($validated->parseArray('decisions'));
         $response = $agent->stream($prompt)
-            ->usingVercelDataProtocol(true, $conversations->latestPendingMessageId(Typer::assertInstance($conversation, Conversation::class)))
+            ->usingVercelDataProtocol($conversations->latestPendingMessageId(Typer::assertInstance($conversation, Conversation::class)))
             ->toResponse($request);
 
         $response->headers->set('x-conversation-id', $conversationId);

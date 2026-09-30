@@ -45,7 +45,8 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn(): array|null => $this->user(),
             ],
-            'conversations' => fn(): array => $request->user() instanceof User
+            'features' => ['ai' => Config::inject()->assertBool('ai.enabled'), 'ai_ready' => Config::inject()->parseNullableString('ai.providers.' . Config::inject()->assertString('ai.default') . '.key') !== null],
+            'conversations' => fn(): array => Config::inject()->assertBool('ai.enabled') && $request->is('assistant', 'conversations/*') && $request->user() instanceof User
                 ? Resolver::resolve(ConversationRepository::class)->recentForSidebar($request->user())
                 : [],
             'flash' => [

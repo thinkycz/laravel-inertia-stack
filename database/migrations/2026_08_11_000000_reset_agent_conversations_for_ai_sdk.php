@@ -10,7 +10,7 @@ use Thinkycz\LaravelCore\Support\Resolver;
 return new class extends AiMigration
 {
     /**
-     * Destructively replace the legacy run and conversation schema.
+     * Create the SDK conversation schema without destroying existing history.
      */
     public function up(): void
     {
@@ -18,10 +18,13 @@ return new class extends AiMigration
         $messagesTable = Config::inject()->parseNullableString('ai.conversations.tables.messages') ?? 'agent_conversation_messages';
         $conversationsTable = Config::inject()->parseNullableString('ai.conversations.tables.conversations') ?? 'agent_conversations';
 
-        $schema->dropIfExists('agent_run_events');
-        $schema->dropIfExists('agent_runs');
-        $schema->dropIfExists($messagesTable);
-        $schema->dropIfExists($conversationsTable);
+        if ($schema->hasTable($conversationsTable) || $schema->hasTable($messagesTable)) {
+            if (!$schema->hasColumns($conversationsTable, ['participant_type', 'participant_id']) || !$schema->hasColumns($messagesTable, ['approval_state', 'tool_calls'])) {
+                throw new RuntimeException('Legacy AI history requires an explicit data migration before upgrading. No tables were changed.');
+            }
+
+            return;
+        }
 
         $schema->create($conversationsTable, static function (Blueprint $table): void {
             $table->string('id', 36)->primary();

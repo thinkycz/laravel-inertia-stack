@@ -15,7 +15,7 @@ test.describe('Full user journey', () => {
 
         await page.waitForURL(/\/dashboard/);
         await expect(
-            page.getByRole('heading', { name: 'Dashboard' }),
+            page.getByRole('heading', { name: 'Welcome to your workspace' }),
         ).toBeVisible();
 
         await page.goto('/settings');

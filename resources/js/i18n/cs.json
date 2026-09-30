@@ -41,14 +41,14 @@
         },
         "register": {
             "title": "Vytvořit účet",
-            "subtitle": "Začněte s autentizovaným Inertia pracovním prostorem.",
+            "subtitle": "Vytvořte si účet a začněte.",
             "submit": "Registrovat",
             "login_link": "Máte již účet?"
         },
         "forgot": {
             "title": "Zapomenuté heslo",
-            "subtitle": "Odešleme nové vygenerované heslo prostřednictvím core mail flow.",
-            "submit": "Odeslat heslo"
+            "subtitle": "Zadejte e-mail a pošleme vám odkaz pro obnovení hesla.",
+            "submit": "Poslat odkaz pro obnovení"
         },
         "reset": {
             "title": "Obnovit heslo",
@@ -63,9 +63,12 @@
         },
         "verify": {
             "title": "Ověřit e-mail",
-            "description": "Ověření e-mailu je řízeno core notifikačním tokem. Odešlete novou ověřovací zprávu, pokud aktuální uživatel stále potřebuje ověřit svou adresu.",
+            "description": "V doručené poště najdete ověřovací odkaz. Pokud jeho platnost vypršela, požádejte o nový.",
             "submit": "Odeslat ověřovací e-mail"
-        }
+        },
+        "workspace_title": "Váš pracovní prostor.\nPřehledně od začátku.",
+        "workspace_description": "Klidné místo pro váš účet, vaše nastavení a vše, co přijde dál.",
+        "private_workspace": "Váš účet. Váš prostor."
     },
     "settings": {
         "title": "Nastavení",
@@ -77,12 +80,14 @@
         "password": {
             "title": "Heslo",
             "submit": "Aktualizovat heslo"
-        }
+        },
+        "security": "Zabezpečení",
+        "appearance": "Vzhled"
     },
     "dashboard": {
         "title": "Nástěnka",
         "how_can_i_help": "Jak vám dnes mohu pomoci?",
-        "chat_description": "Zahajte interaktivní chat s vaším AI agentem. Tento zásobník je optimalizován pomocí Laravel AI SDK a OpenRouteru.",
+        "chat_description": "Položte otázku, rozvíjejte nápad nebo si naplánujte další krok.",
         "type_message": "Napište zprávu...",
         "send": "Odeslat zprávu",
         "suggestions": {
@@ -125,5 +130,53 @@
         "en": "Angličtina",
         "cs": "Čeština",
         "sk": "Slovenčina"
+    },
+    "shell": {
+        "workspace": "Pracovní prostor",
+        "navigation": "Navigace",
+        "open_navigation": "Otevřít navigaci",
+        "your_account": "Váš účet"
+    },
+    "overview": {
+        "title": "Přehled",
+        "welcome": "Vítejte ve svém prostoru",
+        "description": "Váš účet, nastavení a každodenní nástroje. Vše na jednom místě.",
+        "manage": "Spravovat účet",
+        "verify_title": "Ještě jeden krok: ověřte svůj e-mail",
+        "verify_description": "Potvrďte svou adresu, aby byl váš účet aktuální.",
+        "account": "Váš účet v kostce",
+        "signed_in": "Přihlášeno",
+        "email_status": "Stav e-mailu",
+        "verified": "Ověřeno",
+        "pending": "Čeká na ověření",
+        "shortcuts": "Přizpůsobte si svůj prostor",
+        "security_description": "Zkontrolujte aktivní přihlášení a spravujte své heslo.",
+        "appearance_description": "Vyberte si příjemný vzhled a přizpůsobte si pracovní prostředí.",
+        "review_security": "Zkontrolovat zabezpečení",
+        "personalize": "Přizpůsobit prostředí",
+        "assistant_description": "Pomoc s vaším dalším nápadem."
+    },
+    "security": {
+        "password_hint": "Změna hesla vás odhlásí na všech zařízeních.",
+        "sessions": "Aktivní přihlášení",
+        "sessions_hint": "Zkontrolujte, kde jste přihlášeni. Ukončete přihlášení, která již nepoužíváte.",
+        "unknown_browser": "Neznámý prohlížeč",
+        "expires": "Platí do",
+        "current": "Toto zařízení",
+        "revoke": "Ukončit přihlášení",
+        "no_sessions": "Žádná aktivní přihlášení.",
+        "confirm_password": "Potvrďte akci zadáním aktuálního hesla.",
+        "delete_account": "Smazat účet",
+        "delete_hint": "Tímto trvale smažete účet, všechna přihlášení i historii konverzací. Akci nelze vrátit.",
+        "last_active": "Poslední aktivita"
+    },
+    "appearance": {
+        "description": "Vyberte vzhled aplikace na tomto zařízení.",
+        "system": "Systém",
+        "light": "Světlý",
+        "dark": "Tmavý"
+    },
+    "assistant": {
+        "unavailable": "Asistent zatím není dostupný. Zkuste to prosím později."
     }
 }

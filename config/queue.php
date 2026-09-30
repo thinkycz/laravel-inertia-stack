@@ -18,7 +18,7 @@ return [
     |
     */
 
-    'default' => $env->parseNullableString('QUEUE_DRIVER') ?? $env->appEnvMap([
+    'default' => $env->parseNullableString('QUEUE_CONNECTION') ?? $env->parseNullableString('QUEUE_DRIVER') ?? $env->appEnvMap([
         'local' => 'sync',
         'testing' => 'sync',
         'development' => 'redis',
@@ -66,7 +66,7 @@ return [
     */
 
     'batching' => [
-        'database' => $env->parseNullableString('DB_CONNECTION') ?? 'sqlite',
+        'database' => $env->parseNullableString('DB_CONNECTION') ?? 'mysql',
         'table' => 'job_batches',
     ],
 
@@ -85,7 +85,7 @@ return [
 
     'failed' => [
         'driver' => $env->parseNullableString('QUEUE_FAILED_DRIVER') ?? 'database-uuids',
-        'database' => $env->parseNullableString('DB_CONNECTION') ?? 'sqlite',
+        'database' => $env->parseNullableString('DB_CONNECTION') ?? 'mysql',
         'table' => 'failed_jobs',
     ],
 ];

@@ -16,7 +16,7 @@ test.describe('Locale switcher', () => {
         page,
     }) => {
         await expect(
-            page.getByRole('heading', { name: 'Dashboard' }),
+            page.getByRole('heading', { name: 'Welcome to your workspace' }),
         ).toBeVisible();
         await expect(
             page.getByRole('button', { name: 'Log out' }),
@@ -65,7 +65,7 @@ test.describe('Locale switcher', () => {
         await switcher.selectOption('cs');
         await page.getByRole('button', { name: 'Save profile' }).click();
 
-        await page.getByRole('link', { name: 'Nástěnka', exact: true }).click();
+        await page.getByRole('link', { name: 'Přehled', exact: true }).click();
         await page.waitForURL(/\/dashboard$/);
         await page
             .getByRole('link', { name: 'Nastavení', exact: true })

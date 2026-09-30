@@ -31,11 +31,9 @@ yarn-error.log
 
 # node
 /node_modules
-/package-lock.json
 
 # composer
 /vendor
-/composer.lock
 
 # phpunit
 .phpunit.result.cache
@@ -70,3 +68,6 @@ yarn-error.log
 /*.sqlite
 /*.sqlite3
 /*.db
+
+# disposable browser-test connection metadata
+/storage/framework/e2e

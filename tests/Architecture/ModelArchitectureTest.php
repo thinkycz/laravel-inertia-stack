@@ -12,6 +12,7 @@ declare(strict_types=1);
 });
 
 \arch('non-User app models have querySelect and scopeSearch', function (): void {
+    \expect(\is_file(\base_path('app/Models/User.php')))->toBeTrue();
     foreach (\glob(\base_path('app/Models/*.php')) as $file) {
         $contents = (string) \file_get_contents($file);
 

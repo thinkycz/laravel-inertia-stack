@@ -48,15 +48,17 @@ class RegisterController
 
         $clearThrottle = $this->hit($this->limit());
 
-        $user = DB::transaction(static function () use ($validated): User {
-            return User::create([
+        DB::transaction(static function () use ($validated): User {
+            $user = User::create([
                 'email' => $validated->assertString('email'),
                 'locale' => $validated->assertString('locale'),
                 'password' => $validated->assertString('password'),
             ]);
-        });
+            Resolver::resolveDatabaseTokenGuard('users')->login($user);
+            $user->sendEmailVerificationNotification();
 
-        Resolver::resolveDatabaseTokenGuard('users')->login($user);
+            return $user;
+        });
 
         $request->session()->regenerate();
 

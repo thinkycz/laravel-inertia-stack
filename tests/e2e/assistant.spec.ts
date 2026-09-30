@@ -10,6 +10,7 @@ async function register(page: Page) {
     await page.getByLabel('Locale').selectOption('en');
     await page.getByRole('button', { name: 'Register' }).click();
     await page.waitForURL(/\/dashboard/);
+    await page.goto('/assistant');
 }
 
 async function fulfillStream(route: Route, parts: object[]) {
@@ -70,8 +71,6 @@ test.describe('Assistant chat UI', () => {
     test('mobile users can open conversation history', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await register(page);
-
-        await page.getByRole('button', { name: 'Conversations' }).click();
 
         await expect(page.getByText('No conversations yet')).toBeVisible();
     });
@@ -209,4 +208,62 @@ test.describe('Assistant chat UI', () => {
             page.getByText('Failed to generate response. Please try again.'),
         ).toBeVisible();
     });
+});
+
+test('an interrupted request returns the composer to a usable state', async ({
+    page,
+}) => {
+    await register(page);
+    let release: () => void = () => {};
+    const pending = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    await page.route('**/agent/chat', async (route) => {
+        await pending;
+        await route.abort('aborted').catch(() => {});
+    });
+    await page.getByPlaceholder('Type a message...').fill('A slow response');
+    await page.keyboard.press('Enter');
+    const stop = page.getByRole('button', { name: 'Stop response' });
+    await expect(stop).toBeVisible();
+    await stop.click();
+    await expect(stop).toHaveCount(0);
+    await expect(page.getByPlaceholder('Type a message...')).toBeEnabled();
+    release();
+});
+
+test('long responses wrap without clipping on desktop and mobile', async ({
+    page,
+}) => {
+    await register(page);
+    const text = `Reference ${'x'.repeat(600)}\n\n${'A longer paragraph with readable spacing. '.repeat(50)}`;
+    await page.route('**/agent/chat', (route) =>
+        fulfillStream(route, textFixture(text)),
+    );
+    await page
+        .getByPlaceholder('Type a message...')
+        .fill('Show a long response');
+    await page.keyboard.press('Enter');
+    const paragraph = page.getByText(text, { exact: true });
+    await expect(paragraph).toBeVisible();
+    for (const mobile of [false, true]) {
+        await page.setViewportSize({
+            width: mobile ? 390 : 1440,
+            height: mobile ? 844 : 1000,
+        });
+        expect(
+            await paragraph.evaluate(
+                (element) => element.scrollWidth <= element.clientWidth,
+            ),
+        ).toBe(true);
+        expect(
+            await page.evaluate(
+                () => document.documentElement.scrollWidth <= innerWidth,
+            ),
+        ).toBe(true);
+        await page.screenshot({
+            path: `storage/app/verification/assistant-long-${mobile ? 'mobile' : 'desktop'}.png`,
+            fullPage: true,
+        });
+    }
 });

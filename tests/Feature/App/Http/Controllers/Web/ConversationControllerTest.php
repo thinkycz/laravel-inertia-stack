@@ -15,6 +15,8 @@ use Laravel\Ai\Models\Conversation;
 use Thinkycz\LaravelCore\Support\Typer;
 
 \beforeEach(function (): void {
+    Config::set('ai.enabled', true);
+    Config::set('ai.providers.openrouter.key', 'test-only');
     $this->withSession(['_token' => 'conversation-test-token'])
         ->withHeader('X-CSRF-TOKEN', 'conversation-test-token');
 });
@@ -35,7 +37,7 @@ use Thinkycz\LaravelCore\Support\Typer;
         ->get('/conversations/' . $conversation->getKey(), $this->inertiaHeaders());
 
     $response->assertOk();
-    $response->assertJsonPath('component', 'Dashboard');
+    $response->assertJsonPath('component', 'Assistant');
     $response->assertJsonPath('props.conversation.id', $conversation->getKey());
     $response->assertJsonPath('props.conversation.title', 'Test Conversation');
 });
@@ -55,15 +57,15 @@ use Thinkycz\LaravelCore\Support\Typer;
         'role' => 'assistant',
         'content' => '',
         'attachments' => [],
-        'tool_calls' => [[
+        'steps' => [['content' => '', 'tool_calls' => [[
             'id' => 'notification-call',
             'name' => 'SendTestNotificationTool',
+            'approval_reason' => null,
             'arguments' => ['subject' => 'Subject', 'message' => 'Message'],
-        ]],
-        'tool_results' => [],
+        ]], 'reasoning' => '', 'replay_blocks' => [], 'provider_tool_calls' => []]],
+        'status' => 'paused',
         'usage' => [],
         'meta' => [],
-        'approval_state' => ['pending' => ['notification-call' => null]],
     ]);
 
     $response = $this->be($user, 'users')
@@ -85,11 +87,11 @@ use Thinkycz\LaravelCore\Support\Typer;
 
     $this->be($otherUser, 'users')
         ->get('/conversations/' . $conversation->getKey(), $this->inertiaHeaders())
-        ->assertRedirect('/dashboard');
+        ->assertRedirect('/assistant');
 
     $this->be($otherUser, 'users')
         ->delete('/conversations/' . $conversation->getKey())
-        ->assertRedirect('/dashboard');
+        ->assertRedirect('/assistant');
 
     \expect(Conversation::find($conversation->getKey()))->not->toBeNull();
 });
@@ -105,7 +107,7 @@ use Thinkycz\LaravelCore\Support\Typer;
         ->from('/conversations/' . $conversation->getKey())
         ->delete('/conversations/' . $conversation->getKey());
 
-    $response->assertRedirect('/dashboard');
+    $response->assertRedirect('/assistant');
     \expect(Conversation::find($conversation->getKey()))->toBeNull();
 });
 
@@ -180,11 +182,30 @@ use Thinkycz\LaravelCore\Support\Typer;
     $this->be($user, 'users')
         ->from('/conversations/' . $conversation->getKey())
         ->delete('/conversations/' . $conversation->getKey())
-        ->assertRedirect('/dashboard');
+        ->assertRedirect('/assistant');
 
     \expect(DB::table('custom_agent_messages')->count())->toBe(0);
     \expect(Conversation::find($conversation->getKey()))->toBeNull();
 
     Config::set('ai.conversations.tables.conversations', 'agent_conversations');
     Config::set('ai.conversations.tables.messages', 'agent_conversation_messages');
+});
+
+\test('disabled assistant routes reject requests without loading conversation history', function (): void {
+    Config::set('ai.enabled', false);
+    $user = UserFactory::new()->createOne();
+    $this->be($user, 'users')->get('/assistant')->assertNotFound();
+    $this->get('/conversations/anything')->assertNotFound();
+    DB::enableQueryLog();
+    $response = $this->get('/dashboard', $this->inertiaHeaders());
+    $response->assertOk()->assertJsonPath('props.features.ai', false)->assertJsonPath('props.conversations', []);
+    \expect(\array_filter(DB::getQueryLog(), static fn(array $entry): bool => \str_contains($entry['query'], 'agent_conversation')))->toBe([]);
+});
+
+\test('enabled assistant shares history only on assistant pages and identifies missing provider configuration', function (): void {
+    Config::set('ai.providers.openrouter.key', null);
+    $user = UserFactory::new()->createOne();
+    $user->conversations()->create(['id' => Str::uuid()->toString(), 'title' => 'Private history']);
+    $this->be($user, 'users')->get('/dashboard', $this->inertiaHeaders())->assertJsonPath('props.conversations', []);
+    $this->get('/assistant', $this->inertiaHeaders())->assertJsonCount(1, 'props.conversations')->assertJsonPath('props.features.ai_ready', false);
 });

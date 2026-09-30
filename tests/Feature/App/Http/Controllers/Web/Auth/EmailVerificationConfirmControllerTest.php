@@ -107,7 +107,8 @@ use Thinkycz\LaravelCore\Support\Typer;
 \test('missing parameters return 422', function (): void {
     $response = $this->get('/email/verify');
 
-    $response->assertStatus(422);
+    $response->assertRedirect();
+    $response->assertSessionHasErrors();
 });
 
 \test('guard field is whitelisted to known guards', function (): void {
@@ -126,5 +127,16 @@ use Thinkycz\LaravelCore\Support\Typer;
         'token' => $token,
     ]));
 
-    $response->assertStatus(422);
+    $response->assertRedirect();
+    $response->assertSessionHasErrors();
+});
+
+\test('verification tokens expire after three hours and have no shared bypass value', function (): void {
+    $broker = EmailBrokerService::inject();
+    $token = $broker->store('users', 'ttl@example.com');
+    \expect($broker->validate('users', 'ttl@example.com', '111111'))->toBeFalse();
+    $this->travel(179)->minutes();
+    \expect($broker->validate('users', 'ttl@example.com', $token))->toBeTrue();
+    $this->travel(2)->minutes();
+    \expect($broker->validate('users', 'ttl@example.com', $token))->toBeFalse();
 });

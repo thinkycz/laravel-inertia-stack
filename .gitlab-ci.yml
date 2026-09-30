@@ -2,3 +2,69 @@ include:
   - project: 'p4858/ci-cd/gitlab-ci'
     ref: main
     file: '/src/laravel.yml'
+
+starter-frontend:
+  stage: .pre
+  image: node:24-bookworm
+  script:
+    - npm ci --include=dev
+    - npm audit --audit-level=info
+    - npx prettier -c .
+    - npm run type-check
+    - npm run test:unit
+    - npm run build
+  artifacts:
+    paths: [public/build]
+    expire_in: 1 week
+
+starter-php83:
+  stage: .pre
+  image: php:8.3-cli-bookworm
+  services:
+    - name: mysql:8.0
+      alias: mysql
+    - name: redis:8
+      alias: redis
+  variables:
+    MYSQL_DATABASE: starter_integration_tests
+    MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+    DB_HOST: mysql
+    REDIS_HOST: redis
+  before_script:
+    - apt-get update && apt-get install -y git unzip libzip-dev libicu-dev libonig-dev libsqlite3-dev libxml2-dev
+    - docker-php-ext-install pdo_mysql pdo_sqlite mbstring intl zip bcmath pcntl dom xml xmlwriter
+    - pecl install redis && docker-php-ext-enable redis
+    - curl -sSfL https://getcomposer.org/installer -o /tmp/composer-setup.php
+    - php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+    - cp .env.example .env
+    - composer install --no-interaction --prefer-dist
+  script:
+    - composer validate --strict --no-check-all
+    - composer audit
+    - composer check-platform-reqs
+    - php -d memory_limit=1G -d zend.assertions=1 vendor/bin/phpstan analyse
+    - vendor/bin/pint --test
+    - make test
+    - php -d memory_limit=1G -d zend.assertions=1 vendor/bin/pest --configuration=phpunit.integration.xml --fail-on-warning --fail-on-risky
+
+starter-browser:
+  stage: .pre
+  image: php:8.3-cli-bookworm
+  before_script:
+    - apt-get update && apt-get install -y git unzip libzip-dev libonig-dev libsqlite3-dev libxml2-dev curl
+    - docker-php-ext-install pdo_sqlite mbstring zip dom xml xmlwriter
+    - curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+    - apt-get install -y nodejs
+    - curl -sSfL https://getcomposer.org/installer -o /tmp/composer-setup.php
+    - php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+    - cp .env.example .env
+    - composer install --no-interaction --prefer-dist
+    - npm ci --include=dev
+    - npx playwright install --with-deps chromium
+  script:
+    - npm run build
+    - npm run e2e
+  artifacts:
+    when: always
+    paths: [playwright-report, test-results, storage/app/verification]
+    expire_in: 1 week

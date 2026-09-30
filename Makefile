@@ -1,137 +1,86 @@
-# Default shell
 SHELL := /bin/bash
-
-# Variables
 MAKE_PHP ?= php -d zend.assertions=1 -d memory_limit=1G
 MAKE_COMPOSER ?= composer
 MAKE_ARTISAN ?= ${MAKE_PHP} ./artisan
+.DEFAULT_GOAL := check
 
-# Default goal
-.DEFAULT_GOAL := panic
-
-# Goals
-.PHONY: check
+.PHONY: check audit stan frontend test-unit lint fix test e2e test-coverage clean setup local testing demo development staging production serve
 check: stan lint audit frontend test-unit test
 
-.PHONY: audit
-audit: ./vendor ./composer.lock ./node_modules ./package-lock.json
+audit: vendor node_modules
 	${MAKE_COMPOSER} audit
 	${MAKE_COMPOSER} check-platform-reqs
 	${MAKE_COMPOSER} validate --strict --no-check-all
-	npm audit --audit-level info --omit dev
+	npm audit --audit-level=info
 
-.PHONY: stan
-stan: ./vendor/bin/phpstan
-	${MAKE_PHP} ./vendor/bin/phpstan analyse --memory-limit=1G
+stan: vendor
+	${MAKE_PHP} vendor/bin/phpstan analyse --memory-limit=1G
 
-.PHONY: frontend
-frontend: ./node_modules
+frontend: node_modules
 	npm run type-check
 	npm run build
 
-.PHONY: test-unit
-test-unit: ./node_modules/.bin/vitest
+test-unit: node_modules
 	npm run test:unit
 
-.PHONY: lint
-lint: ./node_modules/.bin/prettier ./vendor/bin/pint
-	"./node_modules/.bin/prettier" -c .
-	${MAKE_PHP} ./vendor/bin/pint --test
+lint: node_modules vendor
+	npx prettier -c .
+	${MAKE_PHP} vendor/bin/pint --test
 
-.PHONY: fix
-fix: ./node_modules/.bin/prettier ./vendor/bin/pint
-	"./node_modules/.bin/prettier" -w .
-	${MAKE_PHP} ./vendor/bin/pint
+fix: node_modules vendor
+	npx prettier -w .
+	${MAKE_PHP} vendor/bin/pint
 
-.PHONY: test
-test: ./vendor/bin/pest ./.env
-	${MAKE_ARTISAN} optimize:clear
-	${MAKE_ARTISAN} cache:clear
-	${MAKE_ARTISAN} config:clear
-	${MAKE_ARTISAN} event:clear
-	${MAKE_ARTISAN} route:clear
-	${MAKE_ARTISAN} view:clear
-	${MAKE_ARTISAN} clear-compiled
-	APP_ENV=testing ${MAKE_PHP} ./vendor/bin/pest --no-coverage
+test: vendor
+	${MAKE_PHP} vendor/bin/pest --no-coverage --fail-on-warning --fail-on-risky
 
-.PHONY: e2e
-e2e: ./node_modules/.bin/playwright ./.env
-	./node_modules/.bin/playwright test
+e2e: node_modules vendor frontend
+	npx playwright test
 
-.PHONY: test-coverage
-test-coverage: ./vendor/bin/phpunit ./.env
-	${MAKE_ARTISAN} optimize:clear
-	${MAKE_ARTISAN} cache:clear
-	${MAKE_ARTISAN} config:clear
+test-coverage: vendor
 	@mkdir -p build/coverage
-	XDEBUG_MODE=coverage php -dxdebug.mode=coverage ./vendor/bin/phpunit --coverage-text --coverage-clover=build/coverage/clover.xml --coverage-html=build/coverage/html
-	@echo "Coverage report: build/coverage/html/index.html"
+	XDEBUG_MODE=coverage ${MAKE_PHP} -dxdebug.mode=coverage vendor/bin/pest --coverage --coverage-clover=build/coverage/clover.xml --coverage-html=build/coverage/html
 
-.PHONY: clean
+# Lockfiles are source files. Cleaning dependencies must preserve them.
 clean:
-	rm -rf ./node_modules
-	rm -rf ./package-lock.json
-	rm -rf ./vendor
-	rm -rf ./composer.lock
+	rm -rf node_modules vendor
 
-# Deploy / Release
-.PHONY: local
-local: ./.env
-	${MAKE_COMPOSER} install
-	npm install --include dev --install-links
-	${MAKE_ARTISAN} optimize:clear
-	${MAKE_ARTISAN} cache:clear
+.env:
+	cp .env.example .env
+
+# Existing configuration and application keys are preserved.
+setup: .env
+	${MAKE_COMPOSER} install --no-interaction --prefer-dist
+	npm ci --include=dev
+	@if ${MAKE_PHP} -r 'require "vendor/autoload.php"; $$values = Dotenv\Dotenv::parse(file_get_contents(".env")); exit(($$values["APP_KEY"] ?? "") === "" ? 0 : 1);'; then ${MAKE_ARTISAN} key:generate --no-interaction --force; fi
+
+local: setup frontend
+	${MAKE_ARTISAN} migrate --force --no-interaction
+	@if [ ! -L public/storage ]; then ${MAKE_ARTISAN} storage:link --no-interaction; fi
+
+testing: test
+
+# Demo data is opt-in and forbidden outside a local environment by the seeder.
+demo: vendor .env
+	${MAKE_ARTISAN} db:seed --no-interaction
+
+# Build before pruning development tools. Deployments supply their own .env.
+development: setup frontend
 	${MAKE_ARTISAN} config:clear
-	${MAKE_ARTISAN} event:clear
-	${MAKE_ARTISAN} route:clear
-	${MAKE_ARTISAN} view:clear
-	${MAKE_ARTISAN} clear-compiled
-	${MAKE_ARTISAN} migrate --force
-	${MAKE_ARTISAN} db:seed --force
-	${MAKE_ARTISAN} storage:link --force
-	${MAKE_ARTISAN} queue:restart
-	${MAKE_ARTISAN} up
-
-.PHONY: testing
-testing: local
-
-.PHONY: development
-development: ./.env
-	${MAKE_COMPOSER} install
-	npm install --install-links
-	${MAKE_ARTISAN} optimize:clear
-	${MAKE_ARTISAN} cache:clear
-	${MAKE_ARTISAN} config:clear
-	${MAKE_ARTISAN} event:clear
-	${MAKE_ARTISAN} route:clear
-	${MAKE_ARTISAN} view:clear
-	${MAKE_ARTISAN} clear-compiled
-	${MAKE_ARTISAN} migrate --force
-	${MAKE_ARTISAN} db:seed --force
-	${MAKE_COMPOSER} install -a --no-dev
-	npm install --omit dev --install-links
+	${MAKE_ARTISAN} migrate --force --no-interaction
+	${MAKE_COMPOSER} install --no-dev --classmap-authoritative --no-interaction --prefer-dist
+	npm ci --omit=dev
 	${MAKE_ARTISAN} optimize
-	${MAKE_ARTISAN} config:cache
-	${MAKE_ARTISAN} event:cache
-	${MAKE_ARTISAN} route:cache
-	${MAKE_ARTISAN} view:cache
-	${MAKE_ARTISAN} storage:link --force
+	@if [ ! -L public/storage ]; then ${MAKE_ARTISAN} storage:link --no-interaction; fi
 	${MAKE_ARTISAN} queue:restart
-	${MAKE_ARTISAN} up
 
-.PHONY: staging
-staging: development
+staging production: development
 
-.PHONY: production
-production: development
+serve: vendor .env
+	${MAKE_ARTISAN} serve --host=127.0.0.1 --port=8000
 
-.PHONY: serve
-serve: ./vendor ./.env
-	${MAKE_ARTISAN} serve --host=0.0.0.0 --port=8000
+vendor:
+	${MAKE_COMPOSER} install --no-interaction --prefer-dist
 
-# Dependencies
-./vendor ./composer.lock ./vendor/bin/phpstan ./vendor/bin/pint ./vendor/bin/phpunit:
-	${MAKE_COMPOSER} install
-
-./node_modules ./package-lock.json ./node_modules/.bin/prettier ./node_modules/.bin/playwright:
-	npm install --include dev --install-links
+node_modules:
+	npm ci --include=dev

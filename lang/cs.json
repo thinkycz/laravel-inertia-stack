@@ -24,5 +24,11 @@
     "Password updated.": "Heslo bylo aktualizováno.",
     "A new password has been sent to your email address.": "Na vaši e-mailovou adresu bylo odesláno nové heslo.",
     "A password reset link has been sent to your email address.": "Na vaši e-mailovou adresu byl odeslán odkaz pro obnovení hesla.",
-    "Verification email sent.": "Ověřovací e-mail byl odeslán."
+    "Verification email sent.": "Ověřovací e-mail byl odeslán.",
+    "recovery.sent": "Pokud účet s tímto e-mailem existuje, brzy obdržíte odkaz pro obnovení hesla.",
+    "security.password_updated": "Heslo bylo změněno. Přihlaste se prosím znovu.",
+    "security.session_revoked": "Přihlášení bylo ukončeno.",
+    "security.account_deleted": "Váš účet byl smazán.",
+    "assistant.unavailable": "Asistent zatím není dostupný. Zkuste to prosím později.",
+    "assistant.approval_expired": "Toto schválení již bylo vyřízeno nebo není dostupné. Pro pokračování obnovte konverzaci."
 }

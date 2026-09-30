@@ -9,8 +9,8 @@ export default defineConfig({
     reporter: [['list'], ['html', { open: 'never' }]],
     timeout: 30000,
     use: {
-        baseURL: process.env.APP_URL ?? 'http://127.0.0.1:8000',
-        trace: 'on-first-retry',
+        ...devices['Desktop Chrome'],
+        trace: 'retain-on-failure',
         screenshot: 'only-on-failure',
         actionTimeout: 10000,
         navigationTimeout: 15000,
@@ -18,21 +18,24 @@ export default defineConfig({
     projects: [
         {
             name: 'chromium',
-            use: { ...devices['Desktop Chrome'] },
+            testIgnore: ['**/assistant.spec.ts', '**/availability.spec.ts'],
+            use: { baseURL: 'http://127.0.0.1:8173' },
+        },
+        {
+            name: 'assistant',
+            testMatch: '**/assistant.spec.ts',
+            use: { baseURL: 'http://127.0.0.1:8174' },
+        },
+        {
+            name: 'availability',
+            testMatch: '**/availability.spec.ts',
+            use: { baseURL: 'http://127.0.0.1:8176' },
         },
     ],
-    webServer: {
-        command:
-            'php artisan optimize:clear && php artisan migrate:fresh --env=testing --force && php artisan serve --host=127.0.0.1 --port=8000',
-        url: 'http://127.0.0.1:8000',
-        reuseExistingServer: !process.env.CI,
+    webServer: [8173, 8174, 8176].map((port) => ({
+        command: `node tests/e2e/serve.mjs ${port} ${port === 8174 ? 'ai' : port === 8176 ? 'ai-unconfigured' : ''}`,
+        url: `http://127.0.0.1:${port}`,
+        reuseExistingServer: false,
         timeout: 60000,
-        env: {
-            APP_ENV: 'testing',
-            CACHE_STORE: 'array',
-            SESSION_SECURE_COOKIE: 'false',
-            MAIL_MAILER: 'log',
-            E2E_DISABLE_THROTTLE: 'true',
-        },
-    },
+    })),
 });

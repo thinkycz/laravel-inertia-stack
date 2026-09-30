@@ -1,4 +1,3 @@
-import './bootstrap';
 import '../css/app.css';
 
 import { createInertiaApp } from '@inertiajs/vue3';
@@ -8,8 +7,7 @@ import { createAppI18n, isSupportedLocale } from './i18n';
 import type { SharedProps } from './types';
 
 createInertiaApp({
-    title: (title) =>
-        title ? `${title} - Laravel Inertia Stack` : 'Laravel Inertia Stack',
+    title: (title) => title,
     resolve: (name) => {
         const pages = import.meta.glob<DefineComponent>('./pages/**/*.vue');
         const page = pages[`./pages/${name}.vue`];

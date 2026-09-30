@@ -29,7 +29,7 @@ return [
     |
     */
 
-    'default' => $env->parseNullableString('LOG_DRIVER') ?? $env->appEnvMap([
+    'default' => $env->parseNullableString('LOG_CHANNEL') ?? $env->parseNullableString('LOG_DRIVER') ?? $env->appEnvMap([
         'local' => 'single',
         'testing' => 'null',
         'development' => 'single',
@@ -100,7 +100,7 @@ return [
 
         'mail' => [
             'driver' => 'single',
-            'path' => $app->storagePath('logs/mail.log'),
+            'path' => $env->parseNullableString('MAIL_LOG_PATH') ?? $app->storagePath('logs/mail.log'),
         ],
 
         'null' => [

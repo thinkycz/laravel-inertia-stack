@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Jobs\PruneExpiredTokensJob;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
@@ -11,6 +13,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Thinkycz\LaravelCore\Exceptions\Handler;
 use Thinkycz\LaravelCore\Http\Middleware\AuthShouldUseMiddleware;
 use Thinkycz\LaravelCore\Http\Middleware\SetPreferredLanguageMiddleware;
 use Thinkycz\LaravelCore\Http\Middleware\SetRequestFormatMiddleware;
@@ -46,9 +49,11 @@ return Application::configure(basePath: \dirname(__DIR__))
         ]);
     })
     ->withSingletons([
-        Illuminate\Contracts\Debug\ExceptionHandler::class => Thinkycz\LaravelCore\Exceptions\Handler::class,
+        ExceptionHandler::class => Handler::class,
     ])
     ->withSchedule(static function (Schedule $schedule): void {
+        $schedule->job(new PruneExpiredTokensJob())->daily()->withoutOverlapping();
+
         $config = Config::inject();
 
         $timezone = $config->assertString('app.schedule_timezone');
@@ -68,28 +73,6 @@ return Application::configure(basePath: \dirname(__DIR__))
     ->withExceptions(static function (Exceptions $exceptions): void {
         $exceptions->render(static function (ModelNotFoundException $exception, Request $request): never {
             throw new NotFoundHttpException(previous: $exception);
-        });
-
-        $exceptions->render(static function (Illuminate\Validation\ValidationException $exception, Request $request): mixed {
-            if ($request->header('X-Inertia') !== 'true') {
-                return null;
-            }
-
-            $component = $request->header('X-Inertia-Partial-Component') ?: match ($request->path()) {
-                'verify-email' => 'auth/VerifyEmail',
-                'forgot-password' => 'auth/ForgotPassword',
-                'reset-password' => 'auth/ResetPassword',
-                'register' => 'auth/Register',
-                'settings/profile' => 'settings/Profile',
-                'settings/password' => 'settings/Password',
-                default => 'auth/Login',
-            };
-
-            $page = Inertia\Inertia::render($component, [
-                'errors' => (object) $exception->errors(),
-            ])->toResponse($request);
-
-            return $page->setStatusCode(422);
         });
     })
     ->create();

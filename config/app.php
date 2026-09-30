@@ -117,7 +117,7 @@ return [
 
     'cipher' => 'AES-256-CBC',
 
-    'key' => $env->mustParseString('APP_KEY'),
+    'key' => $env->parseNullableString('APP_KEY'),
 
     'previous_keys' => [
         ...\array_filter(
@@ -158,6 +158,6 @@ return [
     */
 
     'e2e' => [
-        'disable_throttle' => $env->parseNullableBool('E2E_DISABLE_THROTTLE') ?? false,
+        'disable_throttle' => $env->appEnvIs(['testing']) && ($env->parseNullableBool('E2E_DISABLE_THROTTLE') ?? false),
     ],
 ];

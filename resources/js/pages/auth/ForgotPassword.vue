@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Form, Link } from '@inertiajs/vue3';
+import WebForm from '@/components/ui/WebForm.vue';
+import { Link } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 import Button from '@/components/ui/Button.vue';
@@ -19,10 +20,9 @@ useBoundLocale();
         :title="t('auth.forgot.title')"
         :subtitle="t('auth.forgot.subtitle')"
     >
-        <Form
+        <WebForm
             v-slot="{ errors, processing }"
             action="/forgot-password"
-            method="post"
             class="space-y-5"
         >
             <div class="space-y-2">
@@ -44,9 +44,9 @@ useBoundLocale();
             <Button type="submit" class="w-full" :disabled="processing">{{
                 t('auth.forgot.submit')
             }}</Button>
-        </Form>
+        </WebForm>
 
-        <p class="mt-6 text-center text-xs font-medium text-on-surface-variant">
+        <p class="mt-6 text-center text-sm font-medium text-on-surface-variant">
             <Link
                 href="/login"
                 class="font-bold text-primary hover:text-primary-container"

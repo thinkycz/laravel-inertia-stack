@@ -6,9 +6,11 @@ namespace App\Http\Controllers\Web\Auth;
 
 use App\Http\Controllers\Web\Concerns\ThrottlesWebRequests;
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Thinkycz\LaravelCore\Support\Resolver;
 
 class VerifyEmailController
 {
@@ -25,20 +27,18 @@ class VerifyEmailController
     /**
      * Resend an email verification message.
      */
-    public function store(Request $request): Response
+    public function store(Request $request): RedirectResponse
     {
         $user = User::mustAuth();
 
-        $clearThrottle = $this->hit($this->limit());
+        $this->hit($this->limit());
 
         if (!$user->hasVerifiedEmail()) {
             $user->sendEmailVerificationNotification();
         }
 
-        $clearThrottle();
-
         Inertia::flash('success', \__('Verification email sent.'));
 
-        return Inertia::render('auth/VerifyEmail');
+        return Resolver::resolveRedirector()->to('/verify-email');
     }
 }

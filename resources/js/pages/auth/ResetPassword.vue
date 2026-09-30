@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Form } from '@inertiajs/vue3';
+import WebForm from '@/components/ui/WebForm.vue';
+
 import { useI18n } from 'vue-i18n';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 import Button from '@/components/ui/Button.vue';
@@ -24,10 +25,9 @@ useBoundLocale();
         :title="t('auth.reset.title')"
         :subtitle="t('auth.reset.subtitle')"
     >
-        <Form
+        <WebForm
             v-slot="{ errors, processing }"
             action="/reset-password"
-            method="post"
             :reset-on-error="['password']"
             class="space-y-5"
         >
@@ -48,21 +48,8 @@ useBoundLocale();
                 <FieldError v-bind="fieldError(errors, 'email', 'reset')" />
             </div>
 
-            <div class="space-y-2">
-                <Label for="token">{{ t('auth.reset.labels.token') }}</Label>
-                <Input
-                    id="token"
-                    name="token"
-                    autocomplete="one-time-code"
-                    :default-value="token"
-                    :invalid="fieldError(errors, 'token', 'reset').invalid"
-                    :described-by="
-                        fieldError(errors, 'token', 'reset').describedBy
-                    "
-                    required
-                />
-                <FieldError v-bind="fieldError(errors, 'token', 'reset')" />
-            </div>
+            <input type="hidden" name="token" :value="token" />
+            <FieldError v-bind="fieldError(errors, 'token', 'reset')" />
 
             <div class="space-y-2">
                 <Label for="password">{{
@@ -85,6 +72,6 @@ useBoundLocale();
             <Button type="submit" class="w-full" :disabled="processing">{{
                 t('auth.reset.submit')
             }}</Button>
-        </Form>
+        </WebForm>
     </AuthLayout>
 </template>

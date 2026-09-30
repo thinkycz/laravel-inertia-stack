@@ -16,7 +16,7 @@ use Thinkycz\LaravelCore\Support\Typer;
     $shared = $middleware->share($request);
 
     static::assertArrayHasKey('app', $shared);
-    static::assertSame('Laravel Inertia Stack', $shared['app']['name']);
+    static::assertSame('Starter Tests', $shared['app']['name']);
     static::assertArrayHasKey('auth', $shared);
     static::assertArrayHasKey('flash', $shared);
     static::assertArrayHasKey('errors', $shared);

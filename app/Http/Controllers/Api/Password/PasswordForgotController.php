@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Password;
 
 use App\Enums\GuardEnum;
-use Illuminate\Contracts\Auth\PasswordBroker;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Thinkycz\LaravelCore\Http\ApiFormRequest;
 use Thinkycz\LaravelCore\Models\BaseUser;
@@ -36,30 +34,11 @@ class PasswordForgotController extends AutomaticController
             'email' => $validated->assertString('email'),
         ]), BaseUser::class);
 
-        if ($user instanceof BaseUser === false) {
-            $request->thrower()
-                ->error('email', PasswordBroker::INVALID_USER)
-                ->throw();
-        }
-
-        $sendRawPassword = $this->getSendRawPasswordConfig($guard);
-
-        if ($sendRawPassword) {
-            $password = Str::password(16);
-
-            $user->update([
-                'password' => $password,
-            ]);
-
-            $user->databaseTokens()->getQuery()->delete();
-
-            $user->sendPasswordNewPasswordSettedNotification($password);
-        } else {
+        if ($user instanceof BaseUser) {
             $passwordBroker = Resolver::resolvePasswordBroker($guard);
-
-            $token = $passwordBroker->createToken($user);
-
-            $user->sendPasswordResetNotification($token);
+            if (!$passwordBroker->getRepository()->recentlyCreatedToken($user)) {
+                $user->sendPasswordResetNotification($passwordBroker->createToken($user));
+            }
         }
 
         return Resolver::resolveResponseFactory()->noContent();
@@ -86,13 +65,5 @@ class PasswordForgotController extends AutomaticController
     protected function getDefaultPasswordDriver(): string
     {
         return Config::inject()->assertString('auth.defaults.passwords');
-    }
-
-    /**
-     * Get the send raw password configuration value.
-     */
-    protected function getSendRawPasswordConfig(string $broker): bool
-    {
-        return Config::inject()->assertNullableBool("auth.passwords.{$broker}.send_raw_password") ?? false;
     }
 }

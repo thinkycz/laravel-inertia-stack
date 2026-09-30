@@ -19,7 +19,7 @@ return [
     |
     */
 
-    'default' => $env->parseNullableString('CACHE_DRIVER') ?? $env->appEnvMap([
+    'default' => $env->parseNullableString('CACHE_STORE') ?? $env->parseNullableString('CACHE_DRIVER') ?? $env->appEnvMap([
         'local' => 'file',
         'testing' => 'array',
         'development' => 'redis',
@@ -57,8 +57,8 @@ return [
 
         'file' => [
             'driver' => 'file',
-            'path' => \storage_path('framework/cache/data'),
-            'lock_path' => \storage_path('framework/cache/data'),
+            'path' => $env->parseNullableString('CACHE_PATH') ?? \storage_path('framework/cache/data'),
+            'lock_path' => $env->parseNullableString('CACHE_PATH') ?? \storage_path('framework/cache/data'),
         ],
 
         'redis' => [

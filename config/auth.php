@@ -2,7 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Models\User;
+use Thinkycz\LaravelCore\Support\Env;
+
+$env = Env::inject();
+
 return [
+    'verification_url' => $env->mustParseString('APP_URL') . '/email/verify',
+    'token_lifetime_days' => \max(1, $env->parseNullableInt('AUTH_TOKEN_LIFETIME_DAYS') ?? 30),
     /*
     |--------------------------------------------------------------------------
     | Authentication Defaults
@@ -64,7 +71,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => App\Models\User::class,
+            'model' => User::class,
         ],
     ],
 
@@ -85,13 +92,11 @@ return [
     | generating more password reset tokens. This prevents the user from
     | quickly generating a very large amount of password reset tokens.
     |
-    | Also there can be set to only send raw password instead of reset flow.
-    |
     */
 
     'passwords' => [
         'users' => [
-            'send_raw_password' => true,
+            'reset_url' => $env->mustParseString('APP_URL') . '/reset-password',
             'provider' => 'users',
             'table' => 'user_password_resets',
             'expire' => 60,

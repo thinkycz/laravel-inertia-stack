@@ -41,14 +41,14 @@
         },
         "register": {
             "title": "Vytvoriť účet",
-            "subtitle": "Začnite s autentizovaným Inertia pracovným priestorom.",
+            "subtitle": "Vytvorte si účet a začnite.",
             "submit": "Registrovať",
             "login_link": "Máte už účet?"
         },
         "forgot": {
             "title": "Zabudnuté heslo",
-            "subtitle": "Odošleme nové vygenerované heslo prostredníctvom core mail flow.",
-            "submit": "Odoslať heslo"
+            "subtitle": "Zadajte e-mail a pošleme vám odkaz na obnovenie hesla.",
+            "submit": "Poslať odkaz na obnovenie"
         },
         "reset": {
             "title": "Obnoviť heslo",
@@ -63,9 +63,12 @@
         },
         "verify": {
             "title": "Overiť e-mail",
-            "description": "Overenie e-mailu je riadené core notifikačným tokom. Odošlite novú overovaciu správu, ak aktuálny používateľ stále potrebuje overiť svoju adresu.",
+            "description": "V doručenej pošte nájdete overovací odkaz. Ak jeho platnosť vypršala, požiadajte o nový.",
             "submit": "Odoslať overovací e-mail"
-        }
+        },
+        "workspace_title": "Váš pracovný priestor.\nPrehľadne od začiatku.",
+        "workspace_description": "Pokojné miesto pre váš účet, vaše nastavenia a všetko, čo príde ďalej.",
+        "private_workspace": "Váš účet. Váš priestor."
     },
     "settings": {
         "title": "Nastavenia",
@@ -77,12 +80,14 @@
         "password": {
             "title": "Heslo",
             "submit": "Aktualizovať heslo"
-        }
+        },
+        "security": "Zabezpečenie",
+        "appearance": "Vzhľad"
     },
     "dashboard": {
         "title": "Nástenka",
         "how_can_i_help": "Ako vám môžem dnes pomôcť?",
-        "chat_description": "Spusťte interaktívny chat s vaším AI agentom. Tento zásobník je optimalizovaný pomocou Laravel AI SDK a OpenRouteru.",
+        "chat_description": "Položte otázku, rozvíjajte nápad alebo si naplánujte ďalší krok.",
         "type_message": "Napíšte správu...",
         "send": "Odoslať správu",
         "suggestions": {
@@ -125,5 +130,53 @@
         "en": "Angličtina",
         "cs": "Čeština",
         "sk": "Slovenčina"
+    },
+    "shell": {
+        "workspace": "Pracovný priestor",
+        "navigation": "Navigácia",
+        "open_navigation": "Otvoriť navigáciu",
+        "your_account": "Váš účet"
+    },
+    "overview": {
+        "title": "Prehľad",
+        "welcome": "Vitajte vo svojom priestore",
+        "description": "Váš účet, nastavenia a každodenné nástroje. Všetko na jednom mieste.",
+        "manage": "Spravovať účet",
+        "verify_title": "Ešte jeden krok: overte svoj e-mail",
+        "verify_description": "Potvrďte svoju adresu, aby bol váš účet aktuálny.",
+        "account": "Váš účet v skratke",
+        "signed_in": "Prihlásené",
+        "email_status": "Stav e-mailu",
+        "verified": "Overené",
+        "pending": "Čaká na overenie",
+        "shortcuts": "Prispôsobte si svoj priestor",
+        "security_description": "Skontrolujte aktívne prihlásenia a spravujte svoje heslo.",
+        "appearance_description": "Vyberte si príjemný vzhľad a prispôsobte si pracovné prostredie.",
+        "review_security": "Skontrolovať zabezpečenie",
+        "personalize": "Prispôsobiť prostredie",
+        "assistant_description": "Pomoc s vaším ďalším nápadom."
+    },
+    "security": {
+        "password_hint": "Zmena hesla vás odhlási na všetkých zariadeniach.",
+        "sessions": "Aktívne prihlásenia",
+        "sessions_hint": "Skontrolujte, kde ste prihlásení. Ukončite prihlásenia, ktoré už nepoužívate.",
+        "unknown_browser": "Neznámy prehliadač",
+        "expires": "Platí do",
+        "current": "Toto zariadenie",
+        "revoke": "Ukončiť prihlásenie",
+        "no_sessions": "Žiadne aktívne prihlásenia.",
+        "confirm_password": "Potvrďte akciu zadaním aktuálneho hesla.",
+        "delete_account": "Vymazať účet",
+        "delete_hint": "Týmto trvalo vymažete účet, všetky prihlásenia aj históriu konverzácií. Akciu nie je možné vrátiť.",
+        "last_active": "Posledná aktivita"
+    },
+    "appearance": {
+        "description": "Vyberte vzhľad aplikácie na tomto zariadení.",
+        "system": "Systém",
+        "light": "Svetlý",
+        "dark": "Tmavý"
+    },
+    "assistant": {
+        "unavailable": "Asistent zatiaľ nie je dostupný. Skúste to prosím neskôr."
     }
 }
